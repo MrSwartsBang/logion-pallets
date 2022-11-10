@@ -1,0 +1,10 @@
+[workspace]
+members = [
+    "logion-shared",
+    "pallet-lo-authority-list",
+    "pallet-logion-loc",
+    "pallet-logion-vault",
+    "pallet-verified-recovery"
+]
+[profile.release]
+panic = "unwind"
