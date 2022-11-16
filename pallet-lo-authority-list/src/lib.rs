@@ -2,8 +2,8 @@
 
 use frame_support::codec::{Decode, Encode};
 use frame_support::dispatch::Vec;
+use frame_support::error::BadOrigin;
 use frame_support::traits::EnsureOrigin;
-use frame_system::ensure_signed;
 use logion_shared::IsLegalOfficer;
 use scale_info::TypeInfo;
 use sp_core::OpaquePeerId as PeerId;
@@ -205,32 +205,6 @@ pub mod pallet {
 
 pub type OuterOrigin<T> = <T as frame_system::Config>::RuntimeOrigin;
 
-impl<T: Config> EnsureOrigin<OuterOrigin<T>> for Pallet<T> {
-	type Success = T::AccountId;
-
-	fn try_origin(o: OuterOrigin<T>) -> Result<Self::Success, OuterOrigin<T>> {
-		let result = ensure_signed(o.clone());
-		match result {
-			Ok(who) =>
-				if ! <LegalOfficerSet<T>>::contains_key(&who) {
-					Err(o)
-				} else {
-					Ok(who.clone())
-				}
-			Err(_) => Err(o)
-		}
-	}
-
-	#[cfg(feature = "runtime-benchmarks")]
-	fn successful_origin() -> OuterOrigin<T> {
-		let first_member = match <LegalOfficerSet<T>>::iter().next() {
-			Some(pair) => pair.0.clone(),
-			None => Default::default(),
-		};
-		OuterOrigin::<T>::from(RawOrigin::Signed(first_member.clone()))
-	}
-}
-
 impl<T: Config> Pallet<T> {
 	fn initialize_legal_officers(legal_officers: &Vec<(T::AccountId, LegalOfficerData)>) {
 		for legal_officer in legal_officers {
@@ -249,9 +223,31 @@ impl<T: Config> Pallet<T> {
 		LegalOfficerNodes::<T>::set(new_nodes);
 		Ok(())
 	}
+
+	pub fn ensure_legal_officer(o: T::RuntimeOrigin) -> Result<T::AccountId, BadOrigin> {
+		<Self as EnsureOrigin<T::RuntimeOrigin>>::ensure_origin(o)
+	}
 }
 
-impl<T: Config> IsLegalOfficer<T::AccountId> for Pallet<T> {
+impl<T: Config> EnsureOrigin<T::RuntimeOrigin> for Pallet<T> {
+	type Success = T::AccountId;
+
+	fn try_origin(o: T::RuntimeOrigin) -> Result<Self::Success, T::RuntimeOrigin> {
+		<Self as IsLegalOfficer<T::AccountId, T::RuntimeOrigin>>::try_origin(o)
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	fn successful_origin() -> OuterOrigin<T> {
+		let first_member = match <LegalOfficerSet<T>>::iter().next() {
+			Some(pair) => pair.0.clone(),
+			None => Default::default(),
+		};
+		OuterOrigin::<T>::from(RawOrigin::Signed(first_member.clone()))
+	}
+}
+
+impl<T: Config> IsLegalOfficer<T::AccountId, T::RuntimeOrigin> for Pallet<T> {
+
     fn is_legal_officer(account: &T::AccountId) -> bool {
         LegalOfficerSet::<T>::contains_key(account)
     }

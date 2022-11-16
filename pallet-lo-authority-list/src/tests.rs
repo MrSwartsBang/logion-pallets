@@ -1,5 +1,5 @@
 use crate::{mock::*, LegalOfficerData, Error};
-use frame_support::{assert_err, assert_ok, error::BadOrigin, traits::EnsureOrigin};
+use frame_support::{assert_err, assert_ok, error::BadOrigin};
 use logion_shared::IsLegalOfficer;
 use sp_core::OpaquePeerId;
 
@@ -44,7 +44,7 @@ fn it_fails_removing_if_not_manager() {
 fn it_ensures_origin_ok_as_expected() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(LoAuthorityList::add_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID, Default::default()));
-		assert_ok!(LoAuthorityList::try_origin(RuntimeOrigin::signed(LEGAL_OFFICER_ID)));
+		assert_ok!(LoAuthorityList::ensure_legal_officer(RuntimeOrigin::signed(LEGAL_OFFICER_ID)));
 	});
 }
 
@@ -52,7 +52,7 @@ fn it_ensures_origin_ok_as_expected() {
 fn it_ensures_origin_err_as_expected() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(LoAuthorityList::add_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID, Default::default()));
-		let result = LoAuthorityList::try_origin(RuntimeOrigin::signed(ANOTHER_ID));
+		let result = LoAuthorityList::ensure_legal_officer(RuntimeOrigin::signed(ANOTHER_ID));
 		assert!(result.err().is_some());
 	});
 }

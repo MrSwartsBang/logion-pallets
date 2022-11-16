@@ -1,11 +1,11 @@
 use crate::{self as pallet_loc, RequesterOf};
+use logion_shared::IsLegalOfficer;
 use sp_core::hash::H256;
 use frame_support::{parameter_types, traits::EnsureOrigin};
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup}, testing::Header,
 };
 use frame_system as system;
-use system::ensure_signed;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -61,21 +61,18 @@ pub const LOGION_IDENTITY_LOC_ID: u32 = 4;
 
 pub struct LoAuthorityListMock;
 impl EnsureOrigin<RuntimeOrigin> for LoAuthorityListMock {
-    type Success = ();
+    type Success = <Test as system::Config>::AccountId;
 
-    fn try_origin(o: RuntimeOrigin) -> std::result::Result<Self::Success, RuntimeOrigin> {
-		let result = ensure_signed(o.clone());
-        match result {
-			Ok(who) => {
-				if who == LOC_OWNER1 || who == LOC_OWNER2 {
-					Ok(())
-				} else {
-					Err(o)
-				}
-			},
-			Err(_) => Err(o)
-		}
-    }
+    fn try_origin(o: <Test as system::Config>::RuntimeOrigin) -> Result<Self::Success, <Test as system::Config>::RuntimeOrigin> {
+		<Self as IsLegalOfficer<<Test as system::Config>::AccountId, <Test as system::Config>::RuntimeOrigin>>::try_origin(o)
+	}
+}
+
+impl IsLegalOfficer<<Test as system::Config>::AccountId, RuntimeOrigin> for LoAuthorityListMock {
+
+    fn is_legal_officer(account: &<Test as system::Config>::AccountId) -> bool {
+		return *account == LOC_OWNER1 || *account == LOC_OWNER2;
+	}
 }
 
 parameter_types! {
@@ -92,7 +89,7 @@ impl pallet_loc::Config for Test {
 	type LocId = u32;
 	type RuntimeEvent = RuntimeEvent;
 	type Hash = H256;
-	type CreateOrigin = LoAuthorityListMock;
+	type IsLegalOfficer = LoAuthorityListMock;
 	type MaxMetadataItemNameSize = MaxMetadataItemNameSize;
 	type MaxMetadataItemValueSize = MaxMetadataItemValueSize;
 	type MaxFileNatureSize = MaxFileNatureSize;

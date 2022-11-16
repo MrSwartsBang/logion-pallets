@@ -3,8 +3,9 @@
 use frame_support::{
     Parameter,
     dispatch::{Weight, GetDispatchInfo, Vec},
-    traits::UnfilteredDispatchable
+    traits::{UnfilteredDispatchable, EnsureOrigin},
 };
+use frame_system::{ensure_signed, RawOrigin};
 use sp_std::boxed::Box;
 
 pub trait CreateRecoveryCallFactory<Origin, AccountId, BlockNumber> {
@@ -41,6 +42,20 @@ pub trait MultisigAsMultiCallFactory<Origin, AccountId, Timepoint> {
     ) -> Self::Call;
 }
 
-pub trait IsLegalOfficer<AccountId> {
+pub trait IsLegalOfficer<AccountId, Origin: Clone + Into<Result<RawOrigin<AccountId>, Origin>>>: EnsureOrigin<Origin, Success = AccountId> {
     fn is_legal_officer(account: &AccountId) -> bool;
+
+    fn try_origin(o: Origin) -> std::result::Result<AccountId, Origin> {
+		let result = ensure_signed(o.clone());
+        match result {
+			Ok(who) => {
+				if Self::is_legal_officer(&who) {
+					Ok(who)
+				} else {
+					Err(o)
+				}
+			},
+			Err(_) => Err(o)
+		}
+    }
 }
