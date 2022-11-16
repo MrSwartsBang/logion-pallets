@@ -137,7 +137,7 @@ pub mod pallet {
 		pallet_prelude::*,
 	};
 	use codec::HasCompact;
-	use logion_shared::LocQuery;
+	use logion_shared::{LocQuery, IsLegalOfficer};
 	use super::*;
 	pub use crate::weights::WeightInfo;
 
@@ -148,9 +148,6 @@ pub mod pallet {
 
 		/// Type for hashes stored in LOCs
 		type Hash: Member + Parameter + Default + Copy + Ord;
-
-		/// The origin (must be signed) which can create a LOC.
-		type CreateOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
@@ -181,6 +178,9 @@ pub mod pallet {
 
 		/// The maximum size of a Collection Item Token ID
 		type MaxCollectionItemTokenIdSize: Get<usize>;
+
+		/// Query for checking that a signer is a legal officer
+		type IsLegalOfficer: IsLegalOfficer<Self::AccountId, Self::RuntimeOrigin>;
 	}
 
 	#[pallet::pallet]
@@ -288,6 +288,12 @@ pub mod pallet {
 		TermsAndConditionsLocNotClosed,
 		/// TermsAndConditions LOC is void
 		TermsAndConditionsLocVoid,
+		/// Cannot add several files with same hash to LOC
+		DuplicateLocFile,
+		/// Cannot add several metadata items with same name to LOC
+		DuplicateLocMetadata,
+		/// Cannot add several links with same target to LOC
+		DuplicateLocLink,
 	}
 
 	#[pallet::hooks]
@@ -327,8 +333,7 @@ pub mod pallet {
 			#[pallet::compact] loc_id: T::LocId,
 			requester_account_id: T::AccountId,
 		) -> DispatchResultWithPostInfo {
-			T::CreateOrigin::ensure_origin(origin.clone())?;
-			let who = ensure_signed(origin)?;
+			let who = T::IsLegalOfficer::ensure_origin(origin.clone())?;
 
 			if <LocMap<T>>::contains_key(&loc_id) {
 				Err(Error::<T>::AlreadyExists)?
@@ -350,8 +355,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			#[pallet::compact] loc_id: T::LocId,
 		) -> DispatchResultWithPostInfo {
-			T::CreateOrigin::ensure_origin(origin.clone())?;
-			let who = ensure_signed(origin)?;
+			let who = T::IsLegalOfficer::ensure_origin(origin.clone())?;
 
 			if <LocMap<T>>::contains_key(&loc_id) {
 				Err(Error::<T>::AlreadyExists)?
@@ -372,8 +376,7 @@ pub mod pallet {
 			#[pallet::compact] loc_id: T::LocId,
 			requester_account_id: T::AccountId,
 		) -> DispatchResultWithPostInfo {
-			T::CreateOrigin::ensure_origin(origin.clone())?;
-			let who = ensure_signed(origin)?;
+			let who = T::IsLegalOfficer::ensure_origin(origin.clone())?;
 
 			if <LocMap<T>>::contains_key(&loc_id) {
 				Err(Error::<T>::AlreadyExists)?
@@ -396,8 +399,7 @@ pub mod pallet {
 			#[pallet::compact] loc_id: T::LocId,
 			requester_loc_id: T::LocId,
 		) -> DispatchResultWithPostInfo {
-			T::CreateOrigin::ensure_origin(origin.clone())?;
-			let who = ensure_signed(origin)?;
+			let who = T::IsLegalOfficer::ensure_origin(origin.clone())?;
 
 			if <LocMap<T>>::contains_key(&loc_id) {
 				Err(Error::<T>::AlreadyExists)?
@@ -431,8 +433,7 @@ pub mod pallet {
 			collection_max_size: Option<u32>,
 			collection_can_upload: bool,
 		) -> DispatchResultWithPostInfo {
-			T::CreateOrigin::ensure_origin(origin.clone())?;
-			let who = ensure_signed(origin)?;
+			let who = T::IsLegalOfficer::ensure_origin(origin.clone())?;
 
 			if collection_last_block_submission.is_none() && collection_max_size.is_none() {
 				Err(Error::<T>::CollectionHasNoLimit)?
@@ -486,6 +487,9 @@ pub mod pallet {
 					Err(Error::<T>::CannotMutateVoid)?
 				} else {
 					Self::validate_submitter(&item.submitter, &loc)?;
+					if loc.metadata.iter().find(|item| item.name == item.name).is_some() {
+						Err(Error::<T>::DuplicateLocMetadata)?
+					}
 					<LocMap<T>>::mutate(loc_id, |loc| {
 						let mutable_loc = loc.as_mut().unwrap();
 						mutable_loc.metadata.push(item);
@@ -520,6 +524,9 @@ pub mod pallet {
 					Err(Error::<T>::CannotMutateVoid)?
 				} else {
 					Self::validate_submitter(&file.submitter, &loc)?;
+					if loc.files.iter().find(|item| item.hash == file.hash).is_some() {
+						Err(Error::<T>::DuplicateLocFile)?
+					}
 					<LocMap<T>>::mutate(loc_id, |loc| {
 						let mutable_loc = loc.as_mut().unwrap();
 						mutable_loc.files.push(file);
@@ -555,6 +562,9 @@ pub mod pallet {
 				} else if !<LocMap<T>>::contains_key(&link.id) {
 					Err(Error::<T>::LinkedLocNotFound)?
 				} else {
+					if loc.links.iter().find(|item| item.id == link.id).is_some() {
+						Err(Error::<T>::DuplicateLocLink)?
+					}
 					<LocMap<T>>::mutate(loc_id, |loc| {
 						let mutable_loc = loc.as_mut().unwrap();
 						mutable_loc.links.push(link);

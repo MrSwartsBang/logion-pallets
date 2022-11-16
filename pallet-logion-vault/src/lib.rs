@@ -39,7 +39,7 @@ pub mod pallet {
 		type MultisigAsMultiCallFactory: MultisigAsMultiCallFactory<Self::RuntimeOrigin, Self::AccountId, Timepoint<Self::BlockNumber>>;
 
 		/// Query for checking that a signer is a legal officer
-		type IsLegalOfficer: IsLegalOfficer<Self::AccountId>;
+		type IsLegalOfficer: IsLegalOfficer<Self::AccountId, Self::RuntimeOrigin>;
 
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;

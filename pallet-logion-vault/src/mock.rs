@@ -2,12 +2,13 @@ use crate::{self as pallet_logion_vault};
 use logion_shared::{IsLegalOfficer, MultisigApproveAsMultiCallFactory, MultisigAsMultiCallFactory};
 use pallet_multisig::Timepoint;
 use sp_core::hash::H256;
-use frame_support::{parameter_types, dispatch::Weight};
+use frame_support::{parameter_types, dispatch::Weight, traits::EnsureOrigin};
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup}, testing::Header,
 };
 use frame_system as system;
 use sp_std::convert::{TryInto, TryFrom};
+use system::ensure_signed;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -91,11 +92,29 @@ pub const USER_ID: u64 = 3;
 pub const ANOTHER_USER_ID: u64 = 4;
 
 pub struct IsLegalOfficerMock;
-impl IsLegalOfficer<<Test as system::Config>::AccountId> for IsLegalOfficerMock {
+impl IsLegalOfficer<<Test as system::Config>::AccountId, RuntimeOrigin> for IsLegalOfficerMock {
     fn is_legal_officer(
 		account: &<Test as system::Config>::AccountId
 	) -> bool {
         return *account == LEGAL_OFFICER1 || *account == LEGAL_OFFICER2;
+    }
+}
+
+impl EnsureOrigin<RuntimeOrigin> for IsLegalOfficerMock {
+    type Success = <Test as system::Config>::AccountId;
+
+    fn try_origin(o: RuntimeOrigin) -> std::result::Result<Self::Success, RuntimeOrigin> {
+		let result = ensure_signed(o.clone());
+        match result {
+			Ok(who) => {
+				if <Self as IsLegalOfficer<Self::Success, RuntimeOrigin>>::is_legal_officer(&who) {
+					Ok(who)
+				} else {
+					Err(o)
+				}
+			},
+			Err(_) => Err(o)
+		}
     }
 }
 
