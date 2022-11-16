@@ -45,7 +45,7 @@ pub trait MultisigAsMultiCallFactory<Origin, AccountId, Timepoint> {
 pub trait IsLegalOfficer<AccountId, Origin: Clone + Into<Result<RawOrigin<AccountId>, Origin>>>: EnsureOrigin<Origin, Success = AccountId> {
     fn is_legal_officer(account: &AccountId) -> bool;
 
-    fn try_origin(o: Origin) -> std::result::Result<AccountId, Origin> {
+    fn try_origin(o: Origin) -> Result<AccountId, Origin> {
 		let result = ensure_signed(o.clone());
         match result {
 			Ok(who) => {
