@@ -917,3 +917,59 @@ fn it_closes_and_seals_loc() {
 		assert_eq!(loc.seal.unwrap(), seal);
 	});
 }
+
+#[test]
+fn it_fails_adding_file_with_same_hash() {
+	new_test_ext().execute_with(|| {
+		assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
+		let file1 = File {
+			hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
+			nature: "test-file-nature".as_bytes().to_vec(),
+			submitter: LOC_REQUESTER_ID,
+		};
+		assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file1.clone()));
+		let file2 = File {
+			hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
+			nature: "test-file2-nature".as_bytes().to_vec(),
+			submitter: LOC_REQUESTER_ID,
+		};
+		assert_err!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file2.clone()), Error::<Test>::DuplicateLocFile);
+	});
+}
+
+#[test]
+fn it_fails_adding_metadata_with_same_name() {
+	new_test_ext().execute_with(|| {
+		assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
+		let metadata1 = MetadataItem {
+			name: "name".as_bytes().to_vec(),
+			value: "value1".as_bytes().to_vec(),
+			submitter: LOC_REQUESTER_ID,
+		};
+		assert_ok!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata1.clone()));
+		let metadata2 = MetadataItem {
+			name: "name".as_bytes().to_vec(),
+			value: "value2".as_bytes().to_vec(),
+			submitter: LOC_REQUESTER_ID,
+		};
+		assert_err!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata2.clone()), Error::<Test>::DuplicateLocMetadata);
+	});
+}
+
+#[test]
+fn it_fails_adding_link_with_same_target() {
+	new_test_ext().execute_with(|| {
+		assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
+		assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), OTHER_LOC_ID, LOC_REQUESTER_ID));
+		let link1 = LocLink {
+			id: OTHER_LOC_ID,
+			nature: "test-link1-nature".as_bytes().to_vec()
+		};
+		assert_ok!(LogionLoc::add_link(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, link1.clone()));
+		let link2 = LocLink {
+			id: OTHER_LOC_ID,
+			nature: "test-link2-nature".as_bytes().to_vec()
+		};
+		assert_err!(LogionLoc::add_link(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, link2.clone()), Error::<Test>::DuplicateLocLink);
+	});
+}

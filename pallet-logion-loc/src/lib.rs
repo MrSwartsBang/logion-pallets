@@ -126,12 +126,6 @@ pub struct CollectionItemToken {
 	token_id: Vec<u8>,
 }
 
-// type IsLegalOfficerFor<T> = dyn IsLegalOfficer<
-// 	<T as frame_system::Config>::AccountId,
-// 	<T as frame_system::Config>::RuntimeOrigin,
-// 	Success = <T as frame_system::Config>::AccountId,
-// >;
-
 pub mod weights;
 
 #[frame_support::pallet]
@@ -493,6 +487,9 @@ pub mod pallet {
 					Err(Error::<T>::CannotMutateVoid)?
 				} else {
 					Self::validate_submitter(&item.submitter, &loc)?;
+					if loc.metadata.iter().find(|item| item.name == item.name).is_some() {
+						Err(Error::<T>::DuplicateLocMetadata)?
+					}
 					<LocMap<T>>::mutate(loc_id, |loc| {
 						let mutable_loc = loc.as_mut().unwrap();
 						mutable_loc.metadata.push(item);
@@ -527,6 +524,9 @@ pub mod pallet {
 					Err(Error::<T>::CannotMutateVoid)?
 				} else {
 					Self::validate_submitter(&file.submitter, &loc)?;
+					if loc.files.iter().find(|item| item.hash == file.hash).is_some() {
+						Err(Error::<T>::DuplicateLocFile)?
+					}
 					<LocMap<T>>::mutate(loc_id, |loc| {
 						let mutable_loc = loc.as_mut().unwrap();
 						mutable_loc.files.push(file);
@@ -562,6 +562,9 @@ pub mod pallet {
 				} else if !<LocMap<T>>::contains_key(&link.id) {
 					Err(Error::<T>::LinkedLocNotFound)?
 				} else {
+					if loc.links.iter().find(|item| item.id == link.id).is_some() {
+						Err(Error::<T>::DuplicateLocLink)?
+					}
 					<LocMap<T>>::mutate(loc_id, |loc| {
 						let mutable_loc = loc.as_mut().unwrap();
 						mutable_loc.links.push(link);
