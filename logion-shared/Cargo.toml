@@ -22,5 +22,6 @@ sp-std = { git = "https://github.com/paritytech/substrate.git", default-features
 default = ['std']
 std = [
     'frame-support/std',
+    'frame-system/std',
     'sp-std/std',
 ]
