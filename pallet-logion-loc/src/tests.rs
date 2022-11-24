@@ -186,7 +186,7 @@ fn it_fails_adding_metadata_when_closed() {
 }
 
 #[test]
-fn it_fails_adding_metadata_on_polkadot_transaction_loc_when_submitter_is_invalid() {
+fn it_adds_metadata_on_polkadot_transaction_loc_when_submitter_is_not_owner_or_requester() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
 		let metadata = MetadataItem {
@@ -194,12 +194,12 @@ fn it_fails_adding_metadata_on_polkadot_transaction_loc_when_submitter_is_invali
 			value: vec![4, 5, 6],
 			submitter: LOC_OWNER2,
 		};
-		assert_err!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.clone()), Error::<Test>::InvalidSubmitter);
+		assert_ok!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.clone()));
 	});
 }
 
 #[test]
-fn it_fails_adding_metadata_on_logion_identity_loc_for_when_submitter_is_invalid() {
+fn it_adds_metadata_on_logion_identity_loc_for_when_submitter_is_not_owner_or_requester() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(LogionLoc::create_logion_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
 		let metadata = MetadataItem {
@@ -207,7 +207,7 @@ fn it_fails_adding_metadata_on_logion_identity_loc_for_when_submitter_is_invalid
 			value: vec![4, 5, 6],
 			submitter: LOC_OWNER2,
 		};
-		assert_err!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.clone()), Error::<Test>::InvalidSubmitter);
+		assert_ok!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.clone()));
 	});
 }
 
@@ -273,7 +273,7 @@ fn it_fails_adding_file_when_closed() {
 }
 
 #[test]
-fn it_fails_adding_file_on_polkadot_transaction_loc_when_submitter_is_invalid() {
+fn it_adds_file_on_polkadot_transaction_loc_when_submitter_is_not_owner_or_requester() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
 		let file = File {
@@ -281,12 +281,12 @@ fn it_fails_adding_file_on_polkadot_transaction_loc_when_submitter_is_invalid() 
 			nature: "test-file-nature".as_bytes().to_vec(),
 			submitter: LOC_OWNER2,
 		};
-		assert_err!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()), Error::<Test>::InvalidSubmitter);
+		assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()));
 	});
 }
 
 #[test]
-fn it_fails_adding_file_on_logion_identity_loc_when_submitter_is_invalid() {
+fn it_adds_file_on_logion_identity_loc_when_submitter_is_not_owner_or_requester() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(LogionLoc::create_logion_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
 		let file = File {
@@ -294,7 +294,7 @@ fn it_fails_adding_file_on_logion_identity_loc_when_submitter_is_invalid() {
 			nature: "test-file-nature".as_bytes().to_vec(),
 			submitter: LOC_OWNER2,
 		};
-		assert_err!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()), Error::<Test>::InvalidSubmitter);
+		assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()));
 	});
 }
 
