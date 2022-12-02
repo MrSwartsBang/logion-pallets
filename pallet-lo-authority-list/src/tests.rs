@@ -323,3 +323,12 @@ fn it_fails_if_guest_updates() {
 			Error::<Test>::GuestCannotUpdate);
 	});
 }
+
+#[test]
+fn it_fails_if_host_converts_to_guest() {
+	new_test_ext().execute_with(|| {
+		setup_hosts();
+		assert_err!(LoAuthorityList::update_legal_officer(RuntimeOrigin::signed(LEGAL_OFFICER_ID), LEGAL_OFFICER_ID, LegalOfficerData::Guest(LEGAL_OFFICER_ID2)),
+			Error::<Test>::HostCannotConvert);
+	});
+}
