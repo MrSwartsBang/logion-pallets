@@ -1,25 +1,23 @@
 use frame_support::traits::Get;
 use frame_support::weights::Weight;
 use frame_support::traits::OnRuntimeUpgrade;
-use sp_std::collections::btree_set::BTreeSet;
 
 use crate::{Config, PalletStorageVersion, pallet::StorageVersion};
 
-pub mod v2 {
+pub mod v3 {
 	use super::*;
-	use crate::{LegalOfficerSet, LegalOfficerNodes};
+	use crate::{LegalOfficerSet, LegalOfficerData, HostData};
 
-	pub struct AddOnchainSettings<T>(sp_std::marker::PhantomData<T>);
-	impl<T: Config> OnRuntimeUpgrade for AddOnchainSettings<T> {
+	pub struct ConvertIntoHostData<T>(sp_std::marker::PhantomData<T>);
+	impl<T: Config> OnRuntimeUpgrade for ConvertIntoHostData<T> {
 
 		fn on_runtime_upgrade() -> Weight {
 			super::do_storage_upgrade::<T, _>(
-				StorageVersion::V1,
 				StorageVersion::V2AddOnchainSettings,
-				"AddOnchainSettings",
+				StorageVersion::V3GuestLegalOfficers,
+				"ConvertIntoHostData",
 				|| {
-					LegalOfficerSet::<T>::translate(|_, _: bool| Some(Default::default()));
-					LegalOfficerNodes::<T>::set(BTreeSet::new());
+					LegalOfficerSet::<T>::translate_values(|host_data: HostData| Some(LegalOfficerData::Host(host_data)))
 				}
 			)
 		}
