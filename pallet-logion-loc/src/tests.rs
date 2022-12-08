@@ -973,3 +973,25 @@ fn it_fails_adding_link_with_same_target() {
 		assert_err!(LogionLoc::add_link(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, link2.clone()), Error::<Test>::DuplicateLocLink);
 	});
 }
+
+#[test]
+fn it_adds_several_metadata() {
+	new_test_ext().execute_with(|| {
+		assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
+		let metadata1 = MetadataItem {
+			name: vec![1, 2, 3],
+			value: vec![4, 5, 6],
+			submitter: LOC_OWNER1,
+		};
+		assert_ok!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata1.clone()));
+		let metadata2 = MetadataItem {
+			name: vec![1, 2, 4],
+			value: vec![4, 5, 6],
+			submitter: LOC_OWNER1,
+		};
+		assert_ok!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata2.clone()));
+		let loc = LogionLoc::loc(LOC_ID).unwrap();
+		assert_eq!(loc.metadata[0], metadata1);
+		assert_eq!(loc.metadata[1], metadata2);
+	});
+}

@@ -486,7 +486,7 @@ pub mod pallet {
 				} else if loc.void_info.is_some() {
 					Err(Error::<T>::CannotMutateVoid)?
 				} else {
-					if loc.metadata.iter().find(|item| item.name == item.name).is_some() {
+					if loc.metadata.iter().find(|metadata_item| metadata_item.name == item.name).is_some() {
 						Err(Error::<T>::DuplicateLocMetadata)?
 					}
 					<LocMap<T>>::mutate(loc_id, |loc| {
