@@ -18,6 +18,10 @@ pub trait LocQuery<AccountId> {
     fn has_closed_identity_locs(account: &AccountId, legal_officer: &Vec<AccountId>) -> bool;
 }
 
+pub trait LocValidity<LocId, AccountId> {
+    fn loc_valid_with_owner(loc_id: &LocId, legal_officer: &AccountId) -> bool;
+}
+
 pub trait MultisigApproveAsMultiCallFactory<Origin, AccountId, Timepoint> {
     type Call: Parameter + UnfilteredDispatchable<RuntimeOrigin = Origin> + GetDispatchInfo;
 

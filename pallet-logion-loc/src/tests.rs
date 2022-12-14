@@ -3,7 +3,7 @@ use frame_support::error::BadOrigin;
 use sp_runtime::traits::BlakeTwo256;
 use sp_runtime::traits::Hash;
 
-use logion_shared::LocQuery;
+use logion_shared::{LocQuery, LocValidity};
 
 use crate::{File, LegalOfficerCase, LocLink, LocType, MetadataItem, CollectionItem, CollectionItemFile, CollectionItemToken, mock::*, TermsAndConditionsElement};
 use crate::Error;
@@ -408,6 +408,48 @@ fn it_detects_existing_identity_loc() {
 
 		let legal_officers = Vec::from([LOC_OWNER1, LOC_OWNER2]);
 		assert!(LogionLoc::has_closed_identity_locs(&LOC_REQUESTER_ID, &legal_officers));
+	});
+}
+
+#[test]
+fn it_detects_valid_loc_with_owner() {
+	new_test_ext().execute_with(|| {
+		assert_ok!(LogionLoc::create_polkadot_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
+		assert_ok!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
+		assert_eq!(LogionLoc::loc_valid_with_owner(&LOC_ID, &LOC_OWNER1), true);
+	});
+}
+
+#[test]
+fn it_detects_non_existing_loc_as_invalid() {
+	new_test_ext().execute_with(|| {
+		assert_eq!(LogionLoc::loc_valid_with_owner(&LOC_ID, &LOC_OWNER1), false);
+	});
+}
+
+#[test]
+fn it_detects_open_loc_as_invalid() {
+	new_test_ext().execute_with(|| {
+		assert_ok!(LogionLoc::create_polkadot_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
+		assert_eq!(LogionLoc::loc_valid_with_owner(&LOC_ID, &LOC_OWNER1), false);
+	});
+}
+
+#[test]
+fn it_detects_void_loc_as_invalid() {
+	new_test_ext().execute_with(|| {
+		assert_ok!(LogionLoc::create_polkadot_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
+		assert_ok!(LogionLoc::make_void(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
+		assert_eq!(LogionLoc::loc_valid_with_owner(&LOC_ID, &LOC_OWNER1), false);
+	});
+}
+
+#[test]
+fn it_detects_loc_with_wrong_owner_as_invalid() {
+	new_test_ext().execute_with(|| {
+		assert_ok!(LogionLoc::create_polkadot_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
+		assert_ok!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
+		assert_eq!(LogionLoc::loc_valid_with_owner(&LOC_ID, &LOC_OWNER2), false);
 	});
 }
 

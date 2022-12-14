@@ -137,7 +137,7 @@ pub mod pallet {
 		pallet_prelude::*,
 	};
 	use codec::HasCompact;
-	use logion_shared::{LocQuery, IsLegalOfficer};
+	use logion_shared::{LocQuery, LocValidity, IsLegalOfficer};
 	use super::*;
 	pub use crate::weights::WeightInfo;
 
@@ -645,6 +645,15 @@ pub mod pallet {
 		}
 	}
 
+	impl<T: Config> LocValidity<T::LocId, <T as frame_system::Config>::AccountId> for Pallet<T> {
+		fn loc_valid_with_owner(
+			loc_id: &<T as pallet::Config>::LocId,
+			legal_officer: &<T as frame_system::Config>::AccountId,
+		) -> bool {
+			Self::loc_valid_with_owner(&loc_id, &legal_officer)
+		}
+	}
+
 	impl<T: Config> Pallet<T> {
 
 		fn do_make_void(
@@ -713,6 +722,19 @@ pub mod pallet {
 						.map(|some| some.unwrap())
 						.find(|loc| loc.owner == *legal_officer && loc.loc_type == LocType::Identity && loc.closed)
 						.is_some();
+				}
+				None => false
+			}
+		}
+
+		fn loc_valid_with_owner(
+			loc_id: &<T as Config>::LocId,
+			legal_officer: &<T as frame_system::Config>::AccountId
+		) -> bool {
+			let loc = <LocMap<T>>::get(loc_id);
+			match loc {
+				Some(loc) => {
+					return loc.closed && loc.void_info.is_none() && loc.owner == *legal_officer;
 				}
 				None => false
 			}
