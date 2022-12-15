@@ -12,14 +12,14 @@ type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 
 frame_support::construct_runtime!(
-	pub enum Test where
-		Block = Block,
-		NodeBlock = Block,
-		UncheckedExtrinsic = UncheckedExtrinsic,
-	{
-		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-		LogionVote: pallet_logion_vote::{Pallet, Call, Storage, Event<T>},
-	}
+    pub enum Test where
+        Block = Block,
+        NodeBlock = Block,
+        UncheckedExtrinsic = UncheckedExtrinsic,
+    {
+        System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+        LogionVote: pallet_logion_vote::{Pallet, Call, Storage, Event<T>},
+    }
 );
 
 pub struct LoAuthorityListMock;
@@ -50,8 +50,8 @@ impl LocValidity<<Test as pallet_logion_vote::Config>::LocId, <Test as system::C
 }
 
 parameter_types! {
-	pub const BlockHashCount: u64 = 250;
-	pub const SS58Prefix: u8 = 42;
+    pub const BlockHashCount: u64 = 250;
+    pub const SS58Prefix: u8 = 42;
 }
 
 impl system::Config for Test {

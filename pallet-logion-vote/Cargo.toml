@@ -6,7 +6,7 @@ homepage = 'https://logion.network'
 license = 'Apache-2.0'
 name = 'pallet-logion-vote'
 readme = 'README.md'
-version = '0.1.1'
+version = '0.1.0'
 keywords = ['logion']
 
 [package.metadata.docs.rs]

@@ -12,9 +12,23 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-#[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-pub struct Vote<LocId> {
-    loc_id: LocId
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
+pub struct Vote<LocId, AccountId> {
+    loc_id: LocId,
+    ballots: Vec<Ballot<AccountId>>,
+}
+
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
+pub struct Ballot<AccountId> {
+    voter: AccountId,
+    status: BallotStatus,
+}
+
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
+pub enum BallotStatus {
+    NotVoted,
+    VotedYes,
+    VotedNo,
 }
 
 #[frame_support::pallet]
@@ -51,7 +65,7 @@ pub mod pallet {
     /// Votes
     #[pallet::storage]
     #[pallet::getter(fn votes)]
-    pub type Votes<T> = StorageValue<_, Vec<Vote<<T as Config>::LocId>>, ValueQuery>;
+    pub type Votes<T> = StorageValue<_, Vec<Vote<<T as Config>::LocId, <T as frame_system::Config>::AccountId>>, ValueQuery>;
 
     #[pallet::event]
     #[pallet::generate_deposit(pub (super) fn deposit_event)]
@@ -71,14 +85,21 @@ pub mod pallet {
 
         /// Creates a new Vote.
         #[pallet::weight(0)]
-        pub fn create_vote(
+        pub fn create_vote_for_all_legal_officers(
             origin: OriginFor<T>,
-            #[pallet::compact] loc_id: T::LocId
+            #[pallet::compact] loc_id: T::LocId,
         ) -> DispatchResultWithPostInfo {
             let who = T::IsLegalOfficer::ensure_origin(origin.clone())?;
             if T::LocValidity::loc_valid_with_owner(&loc_id, &who) {
+                let ballots: Vec<Ballot<<T as frame_system::Config>::AccountId>> = Vec::from([who]) // todo Use ALL legal officers
+                    .iter()
+                    .map(|legal_officer| Ballot { voter: legal_officer.clone(), status: BallotStatus::NotVoted })
+                    .collect();
                 <Votes<T>>::mutate(|votes| {
-                    votes.push(Vote { loc_id });
+                    votes.push(Vote {
+                        loc_id,
+                        ballots,
+                    });
                 });
                 let next_vote_id = <Votes<T>>::get().len() as u64;
                 Self::deposit_event(Event::VoteCreated(next_vote_id - 1));
