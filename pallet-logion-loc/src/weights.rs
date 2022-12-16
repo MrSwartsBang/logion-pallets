@@ -37,83 +37,83 @@ use sp_std::marker::PhantomData;
 
 /// Weight functions needed for pallet_logion_loc.
 pub trait WeightInfo {
-	fn create_polkadot_identity_loc() -> Weight;
-	fn create_logion_identity_loc() -> Weight;
-	fn create_polkadot_transaction_loc() -> Weight;
-	fn create_logion_transaction_loc() -> Weight;
-	fn add_metadata() -> Weight;
-	fn add_file() -> Weight;
-	fn add_link() -> Weight;
-	fn close() -> Weight;
-	fn make_void() -> Weight;
-	fn make_void_and_replace() -> Weight;
-	fn create_collection_loc() -> Weight;
-	fn add_collection_item() -> Weight;
+    fn create_polkadot_identity_loc() -> Weight;
+    fn create_logion_identity_loc() -> Weight;
+    fn create_polkadot_transaction_loc() -> Weight;
+    fn create_logion_transaction_loc() -> Weight;
+    fn add_metadata() -> Weight;
+    fn add_file() -> Weight;
+    fn add_link() -> Weight;
+    fn close() -> Weight;
+    fn make_void() -> Weight;
+    fn make_void_and_replace() -> Weight;
+    fn create_collection_loc() -> Weight;
+    fn add_collection_item() -> Weight;
 }
 
 /// Weights for pallet_logion_loc using the Substrate node and recommended hardware.
 pub struct SubstrateWeight<T>(PhantomData<T>);
 impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
-	fn create_polkadot_identity_loc() -> Weight {
-		Weight::from_ref_time(29_862_000)
-			.saturating_add(T::DbWeight::get().reads(3))
-			.saturating_add(T::DbWeight::get().writes(2))
-	}
-	fn create_logion_identity_loc() -> Weight {
-		Weight::from_ref_time(20_945_000)
-			.saturating_add(T::DbWeight::get().reads(2))
-			.saturating_add(T::DbWeight::get().writes(1))
-	}
-	fn create_polkadot_transaction_loc() -> Weight {
-		Weight::from_ref_time(26_316_000)
-			.saturating_add(T::DbWeight::get().reads(3))
-			.saturating_add(T::DbWeight::get().writes(2))
-	}
-	fn create_logion_transaction_loc() -> Weight {
-		Weight::from_ref_time(30_288_000)
-			.saturating_add(T::DbWeight::get().reads(4))
-			.saturating_add(T::DbWeight::get().writes(2))
-	}
-	fn add_metadata() -> Weight {
-		Weight::from_ref_time(11_979_000)
-			.saturating_add(T::DbWeight::get().reads(1))
-			.saturating_add(T::DbWeight::get().writes(1))
-	}
-	fn add_file() -> Weight {
-		Weight::from_ref_time(11_971_000)
-			.saturating_add(T::DbWeight::get().reads(1))
-			.saturating_add(T::DbWeight::get().writes(1))
-	}
-	fn add_link() -> Weight {
-		Weight::from_ref_time(16_067_000)
-			.saturating_add(T::DbWeight::get().reads(2))
-			.saturating_add(T::DbWeight::get().writes(1))
-	}
-	fn close() -> Weight {
-		Weight::from_ref_time(22_224_000)
-			.saturating_add(T::DbWeight::get().reads(1))
-			.saturating_add(T::DbWeight::get().writes(1))
-	}
-	fn make_void() -> Weight {
-		Weight::from_ref_time(22_360_000)
-			.saturating_add(T::DbWeight::get().reads(1))
-			.saturating_add(T::DbWeight::get().writes(1))
-	}
-	fn make_void_and_replace() -> Weight {
-		Weight::from_ref_time(32_724_000)
-			.saturating_add(T::DbWeight::get().reads(2))
-			.saturating_add(T::DbWeight::get().writes(2))
-	}
-	fn create_collection_loc() -> Weight {
-		Weight::from_ref_time(29_219_000)
-			.saturating_add(T::DbWeight::get().reads(3))
-			.saturating_add(T::DbWeight::get().writes(2))
-	}
-	fn add_collection_item() -> Weight {
-		Weight::from_ref_time(31_621_000)
-			.saturating_add(T::DbWeight::get().reads(3))
-			.saturating_add(T::DbWeight::get().writes(2))
-	}
+    fn create_polkadot_identity_loc() -> Weight {
+        Weight::from_ref_time(29_862_000)
+            .saturating_add(T::DbWeight::get().reads(3))
+            .saturating_add(T::DbWeight::get().writes(2))
+    }
+    fn create_logion_identity_loc() -> Weight {
+        Weight::from_ref_time(20_945_000)
+            .saturating_add(T::DbWeight::get().reads(2))
+            .saturating_add(T::DbWeight::get().writes(1))
+    }
+    fn create_polkadot_transaction_loc() -> Weight {
+        Weight::from_ref_time(26_316_000)
+            .saturating_add(T::DbWeight::get().reads(3))
+            .saturating_add(T::DbWeight::get().writes(2))
+    }
+    fn create_logion_transaction_loc() -> Weight {
+        Weight::from_ref_time(30_288_000)
+            .saturating_add(T::DbWeight::get().reads(4))
+            .saturating_add(T::DbWeight::get().writes(2))
+    }
+    fn add_metadata() -> Weight {
+        Weight::from_ref_time(11_979_000)
+            .saturating_add(T::DbWeight::get().reads(1))
+            .saturating_add(T::DbWeight::get().writes(1))
+    }
+    fn add_file() -> Weight {
+        Weight::from_ref_time(11_971_000)
+            .saturating_add(T::DbWeight::get().reads(1))
+            .saturating_add(T::DbWeight::get().writes(1))
+    }
+    fn add_link() -> Weight {
+        Weight::from_ref_time(16_067_000)
+            .saturating_add(T::DbWeight::get().reads(2))
+            .saturating_add(T::DbWeight::get().writes(1))
+    }
+    fn close() -> Weight {
+        Weight::from_ref_time(22_224_000)
+            .saturating_add(T::DbWeight::get().reads(1))
+            .saturating_add(T::DbWeight::get().writes(1))
+    }
+    fn make_void() -> Weight {
+        Weight::from_ref_time(22_360_000)
+            .saturating_add(T::DbWeight::get().reads(1))
+            .saturating_add(T::DbWeight::get().writes(1))
+    }
+    fn make_void_and_replace() -> Weight {
+        Weight::from_ref_time(32_724_000)
+            .saturating_add(T::DbWeight::get().reads(2))
+            .saturating_add(T::DbWeight::get().writes(2))
+    }
+    fn create_collection_loc() -> Weight {
+        Weight::from_ref_time(29_219_000)
+            .saturating_add(T::DbWeight::get().reads(3))
+            .saturating_add(T::DbWeight::get().writes(2))
+    }
+    fn add_collection_item() -> Weight {
+        Weight::from_ref_time(31_621_000)
+            .saturating_add(T::DbWeight::get().reads(3))
+            .saturating_add(T::DbWeight::get().writes(2))
+    }
 }
 
 // For backwards compatibility and tests

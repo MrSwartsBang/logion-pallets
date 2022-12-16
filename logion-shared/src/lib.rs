@@ -52,17 +52,17 @@ pub trait IsLegalOfficer<AccountId: PartialEq, Origin: Clone + Into<Result<RawOr
     }
 
     fn try_origin(o: Origin) -> Result<AccountId, Origin> {
-		let result = ensure_signed(o.clone());
+        let result = ensure_signed(o.clone());
         match result {
-			Ok(who) => {
-				if Self::is_legal_officer(&who) {
-					Ok(who)
-				} else {
-					Err(o)
-				}
-			},
-			Err(_) => Err(o)
-		}
+            Ok(who) => {
+                if Self::is_legal_officer(&who) {
+                    Ok(who)
+                } else {
+                    Err(o)
+                }
+            },
+            Err(_) => Err(o)
+        }
     }
 
     fn legal_officers() -> Vec<AccountId>;
