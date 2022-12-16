@@ -31,6 +31,8 @@ pub enum BallotStatus {
     VotedNo,
 }
 
+pub type VoteId = u64;
+
 #[frame_support::pallet]
 pub mod pallet {
     use codec::HasCompact;
@@ -62,16 +64,21 @@ pub mod pallet {
     #[pallet::without_storage_info]
     pub struct Pallet<T>(_);
 
+    ///
+    #[pallet::storage]
+    #[pallet::getter(fn last_vote_id)]
+    pub type LastVoteId<T> = StorageValue<_, VoteId, ValueQuery>;
+
     /// Votes
     #[pallet::storage]
     #[pallet::getter(fn votes)]
-    pub type Votes<T> = StorageValue<_, Vec<Vote<<T as Config>::LocId, <T as frame_system::Config>::AccountId>>, ValueQuery>;
+    pub type Votes<T> = StorageMap<_, Blake2_128Concat, VoteId, Vote<<T as Config>::LocId, <T as frame_system::Config>::AccountId>>;
 
     #[pallet::event]
     #[pallet::generate_deposit(pub (super) fn deposit_event)]
     pub enum Event<T: Config> {
         /// Issued upon new Vote creation. [voteId]
-        VoteCreated(u64)
+        VoteCreated(VoteId)
     }
 
     #[pallet::error]
@@ -91,18 +98,17 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = T::IsLegalOfficer::ensure_origin(origin.clone())?;
             if T::LocValidity::loc_valid_with_owner(&loc_id, &who) {
-                let ballots: Vec<Ballot<<T as frame_system::Config>::AccountId>> = Vec::from([who]) // todo Use ALL legal officers
+                let ballots: Vec<Ballot<<T as frame_system::Config>::AccountId>> = Vec::from([who]) // TODO Use ALL legal officers
                     .iter()
                     .map(|legal_officer| Ballot { voter: legal_officer.clone(), status: BallotStatus::NotVoted })
                     .collect();
-                <Votes<T>>::mutate(|votes| {
-                    votes.push(Vote {
-                        loc_id,
-                        ballots,
-                    });
+                let vote_id = <LastVoteId<T>>::get() + 1;
+                <Votes<T>>::insert(vote_id, Vote {
+                    loc_id,
+                    ballots,
                 });
-                let next_vote_id = <Votes<T>>::get().len() as u64;
-                Self::deposit_event(Event::VoteCreated(next_vote_id - 1));
+                <LastVoteId<T>>::set(vote_id);
+                Self::deposit_event(Event::VoteCreated(vote_id));
                 Ok(().into())
             } else {
                 Err(Error::<T>::InvalidLoc)?
