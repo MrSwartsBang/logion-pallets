@@ -70,8 +70,8 @@ impl EnsureOrigin<RuntimeOrigin> for LoAuthorityListMock {
 
 impl IsLegalOfficer<<Test as system::Config>::AccountId, RuntimeOrigin> for LoAuthorityListMock {
 
-    fn is_legal_officer(account: &<Test as system::Config>::AccountId) -> bool {
-		return *account == LOC_OWNER1 || *account == LOC_OWNER2;
+	fn legal_officers() -> Vec<<Test as system::Config>::AccountId> {
+		vec![ LOC_OWNER1, LOC_OWNER2 ]
 	}
 }
 

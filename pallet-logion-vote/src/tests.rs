@@ -4,7 +4,7 @@ use crate::mock::*;
 use crate::{Ballot, BallotStatus, Error, Vote};
 
 const WRONG_LOC_ID: u32 = 2;
-const WALLET_USER: u64 = 2;
+const WALLET_USER: u64 = 100;
 
 #[test]
 fn it_creates_vote() {
@@ -15,8 +15,12 @@ fn it_creates_vote() {
         assert_eq!(LogionVote::votes(1), Some(
             Vote {
                 loc_id: LOC_ID,
-                ballots: vec![ Ballot { voter: LEGAL_OFFICER1, status: BallotStatus::NotVoted }]
-            }))
+                ballots: vec![
+                    Ballot { voter: LEGAL_OFFICER1, status: BallotStatus::NotVoted },
+                    Ballot { voter: LEGAL_OFFICER2, status: BallotStatus::NotVoted },
+                ]
+            }));
+        assert_eq!(LogionVote::votes(2), None);
     });
 }
 
@@ -39,6 +43,7 @@ fn it_fails_to_create_vote_when_wrong_loc() {
 }
 
 fn assert_empty_storage() {
+    assert_eq!(LogionVote::votes(0), None);
     assert_eq!(LogionVote::votes(1), None);
     assert_eq!(LogionVote::last_vote_id(), 0);
 }

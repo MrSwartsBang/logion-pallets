@@ -340,7 +340,11 @@ impl<T: Config> EnsureOrigin<T::RuntimeOrigin> for Pallet<T> {
 
 impl<T: Config> IsLegalOfficer<T::AccountId, T::RuntimeOrigin> for Pallet<T> {
 
-    fn is_legal_officer(account: &T::AccountId) -> bool {
-        LegalOfficerSet::<T>::contains_key(account)
-    }
+	fn is_legal_officer(account: &T::AccountId) -> bool {
+		LegalOfficerSet::<T>::contains_key(account)
+	}
+
+	fn legal_officers() -> Vec<T::AccountId> {
+		LegalOfficerSet::<T>::iter_keys().collect()
+	}
 }

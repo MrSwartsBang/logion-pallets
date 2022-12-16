@@ -33,11 +33,13 @@ impl EnsureOrigin<RuntimeOrigin> for LoAuthorityListMock {
 }
 
 pub const LEGAL_OFFICER1: u64 = 1;
+pub const LEGAL_OFFICER2: u64 = 2;
 pub const LOC_ID: u32 = 1;
 
 impl IsLegalOfficer<<Test as system::Config>::AccountId, RuntimeOrigin> for LoAuthorityListMock {
-    fn is_legal_officer(account: &<Test as system::Config>::AccountId) -> bool {
-        return *account == LEGAL_OFFICER1;
+
+    fn legal_officers() -> Vec<<Test as Config>::AccountId> {
+        vec![ LEGAL_OFFICER1, LEGAL_OFFICER2 ]
     }
 }
 

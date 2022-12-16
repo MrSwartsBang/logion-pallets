@@ -93,11 +93,10 @@ pub const ANOTHER_USER_ID: u64 = 4;
 
 pub struct IsLegalOfficerMock;
 impl IsLegalOfficer<<Test as system::Config>::AccountId, RuntimeOrigin> for IsLegalOfficerMock {
-    fn is_legal_officer(
-		account: &<Test as system::Config>::AccountId
-	) -> bool {
-        return *account == LEGAL_OFFICER1 || *account == LEGAL_OFFICER2;
-    }
+
+	fn legal_officers() -> Vec<<Test as system::Config>::AccountId> {
+		vec![LEGAL_OFFICER1, LEGAL_OFFICER2]
+	}
 }
 
 impl EnsureOrigin<RuntimeOrigin> for IsLegalOfficerMock {

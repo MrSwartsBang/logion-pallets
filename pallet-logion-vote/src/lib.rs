@@ -77,8 +77,8 @@ pub mod pallet {
     #[pallet::event]
     #[pallet::generate_deposit(pub (super) fn deposit_event)]
     pub enum Event<T: Config> {
-        /// Issued upon new Vote creation. [voteId]
-        VoteCreated(VoteId)
+        /// Issued upon new Vote creation. [voteId, legalOfficers]
+        VoteCreated(VoteId, Vec<T::AccountId>)
     }
 
     #[pallet::error]
@@ -97,8 +97,9 @@ pub mod pallet {
             #[pallet::compact] loc_id: T::LocId,
         ) -> DispatchResultWithPostInfo {
             let who = T::IsLegalOfficer::ensure_origin(origin.clone())?;
+            let legal_officers = T::IsLegalOfficer::legal_officers();
             if T::LocValidity::loc_valid_with_owner(&loc_id, &who) {
-                let ballots: Vec<Ballot<<T as frame_system::Config>::AccountId>> = Vec::from([who]) // TODO Use ALL legal officers
+                let ballots: Vec<Ballot<<T as frame_system::Config>::AccountId>> = legal_officers
                     .iter()
                     .map(|legal_officer| Ballot { voter: legal_officer.clone(), status: BallotStatus::NotVoted })
                     .collect();
@@ -108,7 +109,7 @@ pub mod pallet {
                     ballots,
                 });
                 <LastVoteId<T>>::set(vote_id);
-                Self::deposit_event(Event::VoteCreated(vote_id));
+                Self::deposit_event(Event::VoteCreated(vote_id, legal_officers));
                 Ok(().into())
             } else {
                 Err(Error::<T>::InvalidLoc)?

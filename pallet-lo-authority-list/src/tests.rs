@@ -84,6 +84,20 @@ fn it_detects_legal_officer() {
 }
 
 #[test]
+fn it_gets_legal_officers() {
+	new_test_ext().execute_with(|| {
+		assert_ok!(LoAuthorityList::add_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID, Default::default()));
+		assert_ok!(LoAuthorityList::add_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID2, Default::default()));
+		assert_ok!(LoAuthorityList::add_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID3, Default::default()));
+		let legal_officers = LoAuthorityList::legal_officers();
+		assert_eq!(legal_officers.len(), 3);
+		assert!(legal_officers.contains(&LEGAL_OFFICER_ID));
+		assert!(legal_officers.contains(&LEGAL_OFFICER_ID2));
+		assert!(legal_officers.contains(&LEGAL_OFFICER_ID3));
+	});
+}
+
+#[test]
 fn it_detects_regular_user() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(LoAuthorityList::add_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID, Default::default()));

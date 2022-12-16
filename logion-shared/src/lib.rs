@@ -46,8 +46,10 @@ pub trait MultisigAsMultiCallFactory<Origin, AccountId, Timepoint> {
     ) -> Self::Call;
 }
 
-pub trait IsLegalOfficer<AccountId, Origin: Clone + Into<Result<RawOrigin<AccountId>, Origin>>>: EnsureOrigin<Origin, Success = AccountId> {
-    fn is_legal_officer(account: &AccountId) -> bool;
+pub trait IsLegalOfficer<AccountId: PartialEq, Origin: Clone + Into<Result<RawOrigin<AccountId>, Origin>>>: EnsureOrigin<Origin, Success = AccountId> {
+    fn is_legal_officer(account: &AccountId) -> bool {
+        Self::legal_officers().contains(account)
+    }
 
     fn try_origin(o: Origin) -> Result<AccountId, Origin> {
 		let result = ensure_signed(o.clone());
@@ -62,4 +64,6 @@ pub trait IsLegalOfficer<AccountId, Origin: Clone + Into<Result<RawOrigin<Accoun
 			Err(_) => Err(o)
 		}
     }
+
+    fn legal_officers() -> Vec<AccountId>;
 }
