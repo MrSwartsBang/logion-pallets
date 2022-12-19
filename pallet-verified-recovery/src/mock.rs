@@ -3,7 +3,7 @@ use logion_shared::{LocQuery, CreateRecoveryCallFactory};
 use sp_core::hash::H256;
 use frame_support::{parameter_types};
 use sp_runtime::{
-	traits::{BlakeTwo256, IdentityLookup}, testing::Header,
+    traits::{BlakeTwo256, IdentityLookup}, testing::Header,
 };
 use frame_system as system;
 
@@ -11,46 +11,46 @@ type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 
 frame_support::construct_runtime!(
-	pub enum Test where
-		Block = Block,
-		NodeBlock = Block,
-		UncheckedExtrinsic = UncheckedExtrinsic,
-	{
-		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-		VerifiedRecovery: pallet_verified_recovery::{Pallet, Call, Storage, Event<T>},
-	}
+    pub enum Test where
+        Block = Block,
+        NodeBlock = Block,
+        UncheckedExtrinsic = UncheckedExtrinsic,
+    {
+        System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+        VerifiedRecovery: pallet_verified_recovery::{Pallet, Call, Storage, Event<T>},
+    }
 );
 
 parameter_types! {
-	pub const BlockHashCount: u64 = 250;
-	pub const SS58Prefix: u8 = 42;
+    pub const BlockHashCount: u64 = 250;
+    pub const SS58Prefix: u8 = 42;
 }
 
 impl system::Config for Test {
-	type BaseCallFilter = frame_support::traits::Everything;
-	type BlockWeights = ();
-	type BlockLength = ();
-	type DbWeight = ();
-	type RuntimeOrigin = RuntimeOrigin;
-	type RuntimeCall = RuntimeCall;
-	type Index = u64;
-	type BlockNumber = u64;
-	type Hash = H256;
-	type Hashing = BlakeTwo256;
-	type AccountId = u64;
-	type Lookup = IdentityLookup<Self::AccountId>;
-	type Header = Header;
-	type RuntimeEvent = RuntimeEvent;
-	type BlockHashCount = BlockHashCount;
-	type Version = ();
-	type PalletInfo = PalletInfo;
-	type AccountData = ();
-	type OnNewAccount = ();
-	type OnKilledAccount = ();
-	type SystemWeightInfo = ();
-	type SS58Prefix = SS58Prefix;
-	type OnSetCode = ();
-	type MaxConsumers = frame_support::traits::ConstU32<16>;
+    type BaseCallFilter = frame_support::traits::Everything;
+    type BlockWeights = ();
+    type BlockLength = ();
+    type DbWeight = ();
+    type RuntimeOrigin = RuntimeOrigin;
+    type RuntimeCall = RuntimeCall;
+    type Index = u64;
+    type BlockNumber = u64;
+    type Hash = H256;
+    type Hashing = BlakeTwo256;
+    type AccountId = u64;
+    type Lookup = IdentityLookup<Self::AccountId>;
+    type Header = Header;
+    type RuntimeEvent = RuntimeEvent;
+    type BlockHashCount = BlockHashCount;
+    type Version = ();
+    type PalletInfo = PalletInfo;
+    type AccountData = ();
+    type OnNewAccount = ();
+    type OnKilledAccount = ();
+    type SystemWeightInfo = ();
+    type SS58Prefix = SS58Prefix;
+    type OnSetCode = ();
+    type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
 pub struct CreateRecoveryCallFactoryMock;
@@ -71,21 +71,21 @@ pub const USER_ID: u64 = 5;
 pub struct LocQueryMock;
 impl LocQuery<<Test as system::Config>::AccountId> for LocQueryMock {
     fn has_closed_identity_locs(
-		account: &<Test as system::Config>::AccountId,
-		legal_officers: &Vec<<Test as system::Config>::AccountId>
-	) -> bool {
+        account: &<Test as system::Config>::AccountId,
+        legal_officers: &Vec<<Test as system::Config>::AccountId>
+    ) -> bool {
         return *account == USER_ID && legal_officers[0] == LEGAL_OFFICER_CLOSED_ID1 && legal_officers[1] == LEGAL_OFFICER_CLOSED_ID2;
     }
 }
 
 impl pallet_verified_recovery::Config for Test {
-	type CreateRecoveryCallFactory = CreateRecoveryCallFactoryMock;
-	type LocQuery = LocQueryMock;
-	type RuntimeEvent = RuntimeEvent;
-	type WeightInfo = ();
+    type CreateRecoveryCallFactory = CreateRecoveryCallFactoryMock;
+    type LocQuery = LocQueryMock;
+    type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = ();
 }
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-	system::GenesisConfig::default().build_storage::<Test>().unwrap().into()
+    system::GenesisConfig::default().build_storage::<Test>().unwrap().into()
 }

@@ -4,6 +4,7 @@ members = [
     "pallet-lo-authority-list",
     "pallet-logion-loc",
     "pallet-logion-vault",
+    "pallet-logion-vote",
     "pallet-verified-recovery"
 ]
 [profile.release]

@@ -1,10 +1,12 @@
-use crate as pallet_lo_authority_list;
-use sp_core::hash::H256;
+use crate as pallet_logion_vote;
 use frame_support::parameter_types;
+use frame_support::traits::EnsureOrigin;
+use sp_core::hash::H256;
 use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup}, testing::Header,
 };
-use frame_system::{self as system, EnsureRoot};
+use frame_system::{self as system, Config};
+use logion_shared::{IsLegalOfficer, LocValidity};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -16,9 +18,38 @@ frame_support::construct_runtime!(
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
         System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-        LoAuthorityList: pallet_lo_authority_list::{Pallet, Call, Storage, Event<T>},
+        LogionVote: pallet_logion_vote::{Pallet, Call, Storage, Event<T>},
     }
 );
+
+pub struct LoAuthorityListMock;
+
+impl EnsureOrigin<RuntimeOrigin> for LoAuthorityListMock {
+    type Success = <Test as system::Config>::AccountId;
+
+    fn try_origin(o: <Test as system::Config>::RuntimeOrigin) -> Result<Self::Success, <Test as system::Config>::RuntimeOrigin> {
+        <Self as IsLegalOfficer<<Test as system::Config>::AccountId, <Test as system::Config>::RuntimeOrigin>>::try_origin(o)
+    }
+}
+
+pub const LEGAL_OFFICER1: u64 = 1;
+pub const LEGAL_OFFICER2: u64 = 2;
+pub const LOC_ID: u32 = 1;
+
+impl IsLegalOfficer<<Test as system::Config>::AccountId, RuntimeOrigin> for LoAuthorityListMock {
+
+    fn legal_officers() -> Vec<<Test as Config>::AccountId> {
+        vec![ LEGAL_OFFICER1, LEGAL_OFFICER2 ]
+    }
+}
+
+pub struct LocValidityMock;
+
+impl LocValidity<<Test as pallet_logion_vote::Config>::LocId, <Test as system::Config>::AccountId> for LocValidityMock {
+    fn loc_valid_with_owner(loc_id: &<Test as pallet_logion_vote::Config>::LocId, legal_officer: &<Test as Config>::AccountId) -> bool {
+        return *loc_id == LOC_ID && *legal_officer == LEGAL_OFFICER1;
+    }
+}
 
 parameter_types! {
     pub const BlockHashCount: u64 = 250;
@@ -52,11 +83,11 @@ impl system::Config for Test {
     type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
-impl pallet_lo_authority_list::Config for Test {
-    type AddOrigin = EnsureRoot<u64>;
-    type RemoveOrigin = EnsureRoot<u64>;
-    type UpdateOrigin = EnsureRoot<u64>;
+impl pallet_logion_vote::Config for Test {
+    type LocId = u32;
     type RuntimeEvent = RuntimeEvent;
+    type IsLegalOfficer = LoAuthorityListMock;
+    type LocValidity = LocValidityMock;
 }
 
 // Build genesis storage according to the mock runtime.

@@ -18,6 +18,10 @@ pub trait LocQuery<AccountId> {
     fn has_closed_identity_locs(account: &AccountId, legal_officer: &Vec<AccountId>) -> bool;
 }
 
+pub trait LocValidity<LocId, AccountId> {
+    fn loc_valid_with_owner(loc_id: &LocId, legal_officer: &AccountId) -> bool;
+}
+
 pub trait MultisigApproveAsMultiCallFactory<Origin, AccountId, Timepoint> {
     type Call: Parameter + UnfilteredDispatchable<RuntimeOrigin = Origin> + GetDispatchInfo;
 
@@ -42,20 +46,24 @@ pub trait MultisigAsMultiCallFactory<Origin, AccountId, Timepoint> {
     ) -> Self::Call;
 }
 
-pub trait IsLegalOfficer<AccountId, Origin: Clone + Into<Result<RawOrigin<AccountId>, Origin>>>: EnsureOrigin<Origin, Success = AccountId> {
-    fn is_legal_officer(account: &AccountId) -> bool;
+pub trait IsLegalOfficer<AccountId: PartialEq, Origin: Clone + Into<Result<RawOrigin<AccountId>, Origin>>>: EnsureOrigin<Origin, Success = AccountId> {
+    fn is_legal_officer(account: &AccountId) -> bool {
+        Self::legal_officers().contains(account)
+    }
 
     fn try_origin(o: Origin) -> Result<AccountId, Origin> {
-		let result = ensure_signed(o.clone());
+        let result = ensure_signed(o.clone());
         match result {
-			Ok(who) => {
-				if Self::is_legal_officer(&who) {
-					Ok(who)
-				} else {
-					Err(o)
-				}
-			},
-			Err(_) => Err(o)
-		}
+            Ok(who) => {
+                if Self::is_legal_officer(&who) {
+                    Ok(who)
+                } else {
+                    Err(o)
+                }
+            },
+            Err(_) => Err(o)
+        }
     }
+
+    fn legal_officers() -> Vec<AccountId>;
 }
