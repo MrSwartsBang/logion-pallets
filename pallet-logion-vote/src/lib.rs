@@ -32,6 +32,8 @@ pub enum BallotStatus {
 }
 
 pub type VoteId = u64;
+pub type VoteCompleted = bool;
+pub type VoteApproved = bool;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -40,8 +42,10 @@ pub mod pallet {
         dispatch::DispatchResultWithPostInfo,
         pallet_prelude::*,
     };
+    use frame_system::ensure_signed;
     use frame_system::pallet_prelude::OriginFor;
     use logion_shared::{IsLegalOfficer, LocValidity};
+    use crate::BallotStatus::{NotVoted, VotedNo, VotedYes};
     use super::*;
 
     #[pallet::config]
@@ -78,13 +82,21 @@ pub mod pallet {
     #[pallet::generate_deposit(pub (super) fn deposit_event)]
     pub enum Event<T: Config> {
         /// Issued upon new Vote creation. [voteId, legalOfficers]
-        VoteCreated(VoteId, Vec<T::AccountId>)
+        VoteCreated(VoteId, Vec<T::AccountId>),
+        /// Issued upon new Vote creation. [voteId, ballot, completed, approved]
+        VoteUpdated(VoteId, Ballot<T::AccountId>, VoteCompleted, VoteApproved),
     }
 
     #[pallet::error]
     pub enum Error<T> {
         /// Given LOC is not valid (not found, or not closed or void) or does not belong to vote requester.
         InvalidLoc,
+        /// Given vote does not exist.
+        VoteNotFound,
+        /// User is not allowed to vote on given vote.
+        NotAllowed,
+        /// User has already voted on given vote.
+        AlreadyVoted,
     }
 
     #[pallet::call]
@@ -113,6 +125,64 @@ pub mod pallet {
                 Ok(().into())
             } else {
                 Err(Error::<T>::InvalidLoc)?
+            }
+        }
+
+        /// Vote.
+        #[pallet::weight(0)]
+        pub fn vote(
+            origin: OriginFor<T>,
+            #[pallet::compact] vote_id: VoteId,
+            vote_yes: bool,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+
+            if !<Votes<T>>::contains_key(&vote_id) {
+                Err(Error::<T>::VoteNotFound)?
+            } else {
+                let vote = <Votes<T>>::get(vote_id).unwrap();
+                let option_ballot_index = vote.ballots.iter().position(|vote| vote.voter == who);
+                if option_ballot_index.is_none() {
+                    Err(Error::<T>::NotAllowed)?
+                } else {
+                    let ballot_index = option_ballot_index.unwrap();
+                    if vote.ballots[ballot_index].status != NotVoted {
+                        Err(Error::<T>::AlreadyVoted)?
+                    }
+                    let status = match vote_yes {
+                        true => VotedYes,
+                        false => VotedNo
+                    };
+                    <Votes<T>>::mutate(vote_id, |vote| {
+                        let mutable_vote = vote.as_mut().unwrap();
+                        mutable_vote.ballots[ballot_index].status = status.clone();
+                    });
+                    let (completed, approved) = Self::is_vote_completed(vote_id);
+                    Self::deposit_event(Event::VoteUpdated(
+                        vote_id,
+                        Ballot { status: status.clone(), voter: who },
+                        completed,
+                        approved)
+                    );
+                    Ok(().into())
+                }
+            }
+        }
+    }
+
+    impl<T: Config> Pallet<T> {
+        pub fn is_vote_completed(vote_id: VoteId) -> (VoteCompleted, VoteApproved) {
+            let vote = <Votes<T>>::get(vote_id).unwrap();
+            let not_voted = vote.ballots.iter().find(|ballot| ballot.status == NotVoted);
+            match not_voted {
+                Some(_) => (false, false),
+                None => {
+                    let voted_no = vote.ballots.iter().find(|ballot| ballot.status == VotedNo);
+                    match voted_no {
+                        Some(_) => (true, false),
+                        None => (true, true)
+                    }
+                }
             }
         }
     }
