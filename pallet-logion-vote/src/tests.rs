@@ -10,14 +10,14 @@ const WALLET_USER: u64 = 100;
 fn it_creates_vote() {
     new_test_ext().execute_with(|| {
         assert_empty_storage();
-        assert_ok!(LogionVote::create_vote_for_all_legal_officers(RuntimeOrigin::signed(LEGAL_OFFICER1), LOC_ID));
+        assert_ok!(LogionVote::create_vote_for_all_legal_officers(RuntimeOrigin::signed(HOST_LEGAL_OFFICER), LOC_ID));
         let vote_id = LogionVote::last_vote_id();
         assert_eq!(vote_id, 1);
         assert_eq!(LogionVote::votes(1), Some(
             Vote {
                 loc_id: LOC_ID,
                 ballots: vec![
-                    Ballot { voter: LEGAL_OFFICER1, status: BallotStatus::NotVoted },
+                    Ballot { voter: HOST_LEGAL_OFFICER, status: BallotStatus::NotVoted },
                     Ballot { voter: LEGAL_OFFICER2, status: BallotStatus::NotVoted },
                 ]
             }));
@@ -39,7 +39,7 @@ fn it_fails_to_create_vote_when_not_legal_officer() {
 fn it_fails_to_create_vote_when_wrong_loc() {
     new_test_ext().execute_with(|| {
         assert_empty_storage();
-        assert_err!(LogionVote::create_vote_for_all_legal_officers(RuntimeOrigin::signed(LEGAL_OFFICER1), WRONG_LOC_ID), Error::<Test>::InvalidLoc);
+        assert_err!(LogionVote::create_vote_for_all_legal_officers(RuntimeOrigin::signed(HOST_LEGAL_OFFICER), WRONG_LOC_ID), Error::<Test>::InvalidLoc);
         assert_empty_storage();
     });
 }
@@ -48,14 +48,14 @@ fn it_fails_to_create_vote_when_wrong_loc() {
 fn it_votes_yes() {
     new_test_ext().execute_with(|| {
         assert_empty_storage();
-        assert_ok!(LogionVote::create_vote_for_all_legal_officers(RuntimeOrigin::signed(LEGAL_OFFICER1), LOC_ID));
+        assert_ok!(LogionVote::create_vote_for_all_legal_officers(RuntimeOrigin::signed(HOST_LEGAL_OFFICER), LOC_ID));
         let vote_id: u64 = LogionVote::last_vote_id();
-        assert_ok!(LogionVote::vote(RuntimeOrigin::signed(LEGAL_OFFICER1), vote_id, true));
+        assert_ok!(LogionVote::vote(RuntimeOrigin::signed(HOST_LEGAL_OFFICER), vote_id, true));
         assert_eq!(LogionVote::votes(vote_id), Some(
             Vote {
                 loc_id: LOC_ID,
                 ballots: vec![
-                    Ballot { voter: LEGAL_OFFICER1, status: BallotStatus::VotedYes },
+                    Ballot { voter: HOST_LEGAL_OFFICER, status: BallotStatus::VotedYes },
                     Ballot { voter: LEGAL_OFFICER2, status: BallotStatus::NotVoted },
                 ]
             }));
@@ -67,15 +67,15 @@ fn it_votes_yes() {
 fn it_votes_yes_and_no() {
     new_test_ext().execute_with(|| {
         assert_empty_storage();
-        assert_ok!(LogionVote::create_vote_for_all_legal_officers(RuntimeOrigin::signed(LEGAL_OFFICER1), LOC_ID));
+        assert_ok!(LogionVote::create_vote_for_all_legal_officers(RuntimeOrigin::signed(HOST_LEGAL_OFFICER), LOC_ID));
         let vote_id: u64 = LogionVote::last_vote_id();
-        assert_ok!(LogionVote::vote(RuntimeOrigin::signed(LEGAL_OFFICER1), vote_id, true));
+        assert_ok!(LogionVote::vote(RuntimeOrigin::signed(HOST_LEGAL_OFFICER), vote_id, true));
         assert_ok!(LogionVote::vote(RuntimeOrigin::signed(LEGAL_OFFICER2), vote_id, false));
         assert_eq!(LogionVote::votes(vote_id), Some(
             Vote {
                 loc_id: LOC_ID,
                 ballots: vec![
-                    Ballot { voter: LEGAL_OFFICER1, status: BallotStatus::VotedYes },
+                    Ballot { voter: HOST_LEGAL_OFFICER, status: BallotStatus::VotedYes },
                     Ballot { voter: LEGAL_OFFICER2, status: BallotStatus::VotedNo },
                 ]
             }));
@@ -87,15 +87,15 @@ fn it_votes_yes_and_no() {
 fn it_votes_yes_and_yes() {
     new_test_ext().execute_with(|| {
         assert_empty_storage();
-        assert_ok!(LogionVote::create_vote_for_all_legal_officers(RuntimeOrigin::signed(LEGAL_OFFICER1), LOC_ID));
+        assert_ok!(LogionVote::create_vote_for_all_legal_officers(RuntimeOrigin::signed(HOST_LEGAL_OFFICER), LOC_ID));
         let vote_id: u64 = LogionVote::last_vote_id();
-        assert_ok!(LogionVote::vote(RuntimeOrigin::signed(LEGAL_OFFICER1), vote_id, true));
+        assert_ok!(LogionVote::vote(RuntimeOrigin::signed(HOST_LEGAL_OFFICER), vote_id, true));
         assert_ok!(LogionVote::vote(RuntimeOrigin::signed(LEGAL_OFFICER2), vote_id, true));
         assert_eq!(LogionVote::votes(vote_id), Some(
             Vote {
                 loc_id: LOC_ID,
                 ballots: vec![
-                    Ballot { voter: LEGAL_OFFICER1, status: BallotStatus::VotedYes },
+                    Ballot { voter: HOST_LEGAL_OFFICER, status: BallotStatus::VotedYes },
                     Ballot { voter: LEGAL_OFFICER2, status: BallotStatus::VotedYes },
                 ]
             }));
@@ -107,7 +107,7 @@ fn it_votes_yes_and_yes() {
 fn it_fails_to_vote_wrong_vote_id() {
     new_test_ext().execute_with(|| {
         assert_empty_storage();
-        assert_ok!(LogionVote::create_vote_for_all_legal_officers(RuntimeOrigin::signed(LEGAL_OFFICER1), LOC_ID));
+        assert_ok!(LogionVote::create_vote_for_all_legal_officers(RuntimeOrigin::signed(HOST_LEGAL_OFFICER), LOC_ID));
         let wrong_vote_id: u64 = LogionVote::last_vote_id() + 100;
         assert_err!(LogionVote::vote(RuntimeOrigin::signed(LEGAL_OFFICER2), wrong_vote_id, false), Error::<Test>::VoteNotFound);
     });
@@ -117,7 +117,7 @@ fn it_fails_to_vote_wrong_vote_id() {
 fn it_fails_to_vote_wrong_voter() {
     new_test_ext().execute_with(|| {
         assert_empty_storage();
-        assert_ok!(LogionVote::create_vote_for_all_legal_officers(RuntimeOrigin::signed(LEGAL_OFFICER1), LOC_ID));
+        assert_ok!(LogionVote::create_vote_for_all_legal_officers(RuntimeOrigin::signed(HOST_LEGAL_OFFICER), LOC_ID));
         let vote_id: u64 = LogionVote::last_vote_id();
         assert_err!(LogionVote::vote(RuntimeOrigin::signed(WALLET_USER), vote_id, true), Error::<Test>::NotAllowed);
     });
@@ -127,7 +127,7 @@ fn it_fails_to_vote_wrong_voter() {
 fn it_fails_to_vote_twice() {
     new_test_ext().execute_with(|| {
         assert_empty_storage();
-        assert_ok!(LogionVote::create_vote_for_all_legal_officers(RuntimeOrigin::signed(LEGAL_OFFICER1), LOC_ID));
+        assert_ok!(LogionVote::create_vote_for_all_legal_officers(RuntimeOrigin::signed(HOST_LEGAL_OFFICER), LOC_ID));
         let vote_id: u64 = LogionVote::last_vote_id();
         assert_ok!(LogionVote::vote(RuntimeOrigin::signed(LEGAL_OFFICER2), vote_id, false));
         assert_err!(LogionVote::vote(RuntimeOrigin::signed(LEGAL_OFFICER2), vote_id, true), Error::<Test>::AlreadyVoted);

@@ -1,10 +1,11 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use frame_support::{
+    dispatch::{GetDispatchInfo, Vec, Weight},
     Parameter,
-    dispatch::{Weight, GetDispatchInfo, Vec},
-    traits::{UnfilteredDispatchable, EnsureOrigin},
+    traits::{EnsureOrigin, UnfilteredDispatchable},
 };
+use frame_support::dispatch::DispatchResultWithPostInfo;
 use frame_system::{ensure_signed, RawOrigin};
 use sp_std::boxed::Box;
 
@@ -14,8 +15,14 @@ pub trait CreateRecoveryCallFactory<Origin, AccountId, BlockNumber> {
     fn build_create_recovery_call(legal_officers: Vec<AccountId>, threshold: u16, delay_period: BlockNumber) -> Self::Call;
 }
 
-pub trait LocQuery<AccountId> {
+pub struct LegalOfficerCaseSummary<AccountId> {
+    pub owner: AccountId,
+    pub requester: Option<AccountId>,
+}
+
+pub trait LocQuery<LocId, AccountId> {
     fn has_closed_identity_locs(account: &AccountId, legal_officer: &Vec<AccountId>) -> bool;
+    fn get_loc(loc_id: &LocId) -> Option<LegalOfficerCaseSummary<AccountId>>;
 }
 
 pub trait LocValidity<LocId, AccountId> {
@@ -66,4 +73,11 @@ pub trait IsLegalOfficer<AccountId: PartialEq, Origin: Clone + Into<Result<RawOr
     }
 
     fn legal_officers() -> Vec<AccountId>;
+}
+
+pub trait LegalOfficerCreation<AccountId> {
+    fn add_guest_legal_officer(
+        guest_legal_officer_id: AccountId,
+        host_legal_officer_id: AccountId,
+    ) -> DispatchResultWithPostInfo;
 }

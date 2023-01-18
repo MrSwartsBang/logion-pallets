@@ -1,10 +1,10 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use frame_support::codec::{Decode, Encode};
-use frame_support::dispatch::Vec;
+use frame_support::dispatch::{DispatchResultWithPostInfo, Vec};
 use frame_support::error::BadOrigin;
 use frame_support::traits::EnsureOrigin;
-use logion_shared::IsLegalOfficer;
+use logion_shared::{IsLegalOfficer, LegalOfficerCreation};
 use scale_info::TypeInfo;
 use sp_core::OpaquePeerId as PeerId;
 use sp_std::collections::btree_set::BTreeSet;
@@ -168,16 +168,10 @@ pub mod pallet {
             data: LegalOfficerData<T::AccountId>,
         ) -> DispatchResultWithPostInfo {
             T::AddOrigin::ensure_origin(origin)?;
-            if <LegalOfficerSet<T>>::contains_key(&legal_officer_id) {
-                Err(Error::<T>::AlreadyExists)?
-            } else {
-                Self::ensure_host_if_guest(&data)?;
-                <LegalOfficerSet<T>>::insert(legal_officer_id.clone(), &data);
-                Self::try_reset_legal_officer_nodes(&data)?;
-
-                Self::deposit_event(Event::LoAdded(legal_officer_id));
-                Ok(().into())
-            }
+            Self::do_add_legal_officer(
+                legal_officer_id,
+                data
+            )
         }
 
         /// Removes a LO from the list
@@ -319,6 +313,22 @@ impl<T: Config> Pallet<T> {
             }
         }
     }
+
+    fn do_add_legal_officer(
+        legal_officer_id: T::AccountId,
+        data: LegalOfficerData<T::AccountId>,
+    ) -> DispatchResultWithPostInfo {
+        if <LegalOfficerSet<T>>::contains_key(&legal_officer_id) {
+            Err(Error::<T>::AlreadyExists)?
+        } else {
+            Self::ensure_host_if_guest(&data)?;
+            <LegalOfficerSet<T>>::insert(legal_officer_id.clone(), &data);
+            Self::try_reset_legal_officer_nodes(&data)?;
+
+            Self::deposit_event(Event::LoAdded(legal_officer_id));
+            Ok(().into())
+        }
+    }
 }
 
 impl<T: Config> EnsureOrigin<T::RuntimeOrigin> for Pallet<T> {
@@ -346,5 +356,15 @@ impl<T: Config> IsLegalOfficer<T::AccountId, T::RuntimeOrigin> for Pallet<T> {
 
     fn legal_officers() -> Vec<T::AccountId> {
         LegalOfficerSet::<T>::iter_keys().collect()
+    }
+}
+
+impl<T: Config> LegalOfficerCreation<T::AccountId> for Pallet<T> {
+
+    fn add_guest_legal_officer(
+        guest_legal_officer_id: T::AccountId,
+        host_legal_officer_id: T::AccountId) -> DispatchResultWithPostInfo {
+
+        Pallet::<T>::do_add_legal_officer(guest_legal_officer_id, LegalOfficerData::Guest(host_legal_officer_id))
     }
 }

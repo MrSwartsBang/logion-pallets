@@ -16,6 +16,8 @@ mod benchmarking;
 use frame_support::codec::{Decode, Encode};
 use frame_support::dispatch::Vec;
 use scale_info::TypeInfo;
+use logion_shared::LegalOfficerCaseSummary;
+use crate::Requester::Account;
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
 pub enum LocType {
@@ -636,12 +638,27 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo { Self::do_add_collection_item(origin, collection_loc_id, item_id, item_description, item_files, item_token, restricted_delivery, terms_and_conditions) }
     }
 
-    impl<T: Config> LocQuery<<T as frame_system::Config>::AccountId> for Pallet<T> {
+    impl<T: Config> LocQuery<T::LocId, <T as frame_system::Config>::AccountId> for Pallet<T> {
         fn has_closed_identity_locs(
             account: &<T as frame_system::Config>::AccountId,
             legal_officers: &Vec<<T as frame_system::Config>::AccountId>
         ) -> bool {
             Self::has_closed_identity_loc(account, &legal_officers[0]) && Self::has_closed_identity_loc(account, &legal_officers[1])
+        }
+
+        fn get_loc(loc_id: &T::LocId) -> Option<LegalOfficerCaseSummary<T::AccountId>> {
+            let option_loc = <LocMap<T>>::get(&loc_id);
+
+            match option_loc {
+                Some(loc) => Some(LegalOfficerCaseSummary {
+                    owner: loc.owner,
+                    requester: match loc.requester {
+                        Account(account) => Some(account),
+                        _ => None
+                    }
+                }),
+                _ => None
+            }
         }
     }
 

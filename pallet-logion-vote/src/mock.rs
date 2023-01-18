@@ -1,3 +1,4 @@
+use frame_support::dispatch::DispatchResultWithPostInfo;
 use crate as pallet_logion_vote;
 use frame_support::parameter_types;
 use frame_support::traits::EnsureOrigin;
@@ -6,7 +7,7 @@ use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup}, testing::Header,
 };
 use frame_system::{self as system, Config};
-use logion_shared::{IsLegalOfficer, LocValidity};
+use logion_shared::{IsLegalOfficer, LegalOfficerCaseSummary, LegalOfficerCreation, LocQuery, LocValidity};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -32,14 +33,15 @@ impl EnsureOrigin<RuntimeOrigin> for LoAuthorityListMock {
     }
 }
 
-pub const LEGAL_OFFICER1: u64 = 1;
+pub const HOST_LEGAL_OFFICER: u64 = 1;
 pub const LEGAL_OFFICER2: u64 = 2;
+pub const APPLYING_GUEST_LEGAL_OFFICER: u64 = 3;
 pub const LOC_ID: u32 = 1;
 
 impl IsLegalOfficer<<Test as system::Config>::AccountId, RuntimeOrigin> for LoAuthorityListMock {
 
     fn legal_officers() -> Vec<<Test as Config>::AccountId> {
-        vec![ LEGAL_OFFICER1, LEGAL_OFFICER2 ]
+        vec![HOST_LEGAL_OFFICER, LEGAL_OFFICER2 ]
     }
 }
 
@@ -47,7 +49,37 @@ pub struct LocValidityMock;
 
 impl LocValidity<<Test as pallet_logion_vote::Config>::LocId, <Test as system::Config>::AccountId> for LocValidityMock {
     fn loc_valid_with_owner(loc_id: &<Test as pallet_logion_vote::Config>::LocId, legal_officer: &<Test as Config>::AccountId) -> bool {
-        return *loc_id == LOC_ID && *legal_officer == LEGAL_OFFICER1;
+        return *loc_id == LOC_ID && *legal_officer == HOST_LEGAL_OFFICER;
+    }
+}
+
+pub struct LocQueryMock;
+
+impl LocQuery<<Test as pallet_logion_vote::Config>::LocId, <Test as system::Config>::AccountId> for LocQueryMock {
+    fn has_closed_identity_locs(_account: &<Test as Config>::AccountId, _legal_officer: &Vec<<Test as Config>::AccountId>) -> bool {
+        false
+    }
+
+    fn get_loc(loc_id: &<Test as crate::Config>::LocId) -> Option<LegalOfficerCaseSummary<<Test as Config>::AccountId>> {
+        if *loc_id == LOC_ID {
+            return Some(LegalOfficerCaseSummary {
+                owner: HOST_LEGAL_OFFICER,
+                requester: Some(APPLYING_GUEST_LEGAL_OFFICER),
+            })
+        }
+        return None
+    }
+}
+
+pub struct LegalOfficerCreationMock;
+
+impl LegalOfficerCreation<<Test as system::Config>::AccountId> for LegalOfficerCreationMock {
+    fn add_guest_legal_officer(guest_legal_officer_id: <Test as Config>::AccountId, host_legal_officer_id: <Test as Config>::AccountId) -> DispatchResultWithPostInfo {
+        if guest_legal_officer_id == APPLYING_GUEST_LEGAL_OFFICER && host_legal_officer_id == HOST_LEGAL_OFFICER {
+            Ok(().into())
+        } else {
+            panic!()
+        }
     }
 }
 
@@ -88,6 +120,8 @@ impl pallet_logion_vote::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type IsLegalOfficer = LoAuthorityListMock;
     type LocValidity = LocValidityMock;
+    type LocQuery = LocQueryMock;
+    type LegalOfficerCreation = LegalOfficerCreationMock;
 }
 
 // Build genesis storage according to the mock runtime.

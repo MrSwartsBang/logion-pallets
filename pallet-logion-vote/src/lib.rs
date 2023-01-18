@@ -44,7 +44,7 @@ pub mod pallet {
     };
     use frame_system::ensure_signed;
     use frame_system::pallet_prelude::OriginFor;
-    use logion_shared::{IsLegalOfficer, LocValidity};
+    use logion_shared::{IsLegalOfficer, LegalOfficerCreation, LocQuery, LocValidity};
     use crate::BallotStatus::{NotVoted, VotedNo, VotedYes};
     use super::*;
 
@@ -61,6 +61,12 @@ pub mod pallet {
 
         /// Query for checking the existence of a closed Identity LOC
         type LocValidity: LocValidity<Self::LocId, Self::AccountId>;
+
+        /// Query for retrieving LOC
+        type LocQuery: LocQuery<Self::LocId, Self::AccountId>;
+
+        /// Creation of a guest LO
+        type LegalOfficerCreation: LegalOfficerCreation<Self::AccountId>;
     }
 
     #[pallet::pallet]
@@ -101,7 +107,6 @@ pub mod pallet {
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
-
         /// Creates a new Vote.
         #[pallet::weight(0)]
         pub fn create_vote_for_all_legal_officers(
@@ -164,6 +169,12 @@ pub mod pallet {
                         closed,
                         approved)
                     );
+                    if closed && approved {
+                        let result = Self::add_guest_legal_officer(vote.loc_id);
+                        if result.is_err() {
+                            return result
+                        }
+                    }
                     Ok(().into())
                 }
             }
@@ -181,6 +192,21 @@ pub mod pallet {
                     match voted_no {
                         Some(_) => (true, false),
                         None => (true, true)
+                    }
+                }
+            }
+        }
+
+        fn add_guest_legal_officer(loc_id: T::LocId) -> DispatchResultWithPostInfo {
+            let option_loc = T::LocQuery::get_loc(&loc_id);
+            match option_loc {
+                None => Err(Error::<T>::InvalidLoc)?,
+                Some(loc) => {
+                    match loc.requester {
+                        None => Err(Error::<T>::InvalidLoc)?,
+                        Some(requester) => {
+                            T::LegalOfficerCreation::add_guest_legal_officer( requester, loc.owner)
+                        }
                     }
                 }
             }

@@ -12,6 +12,7 @@ pub mod weights;
 
 #[frame_support::pallet]
 pub mod pallet {
+    use codec::HasCompact;
     use frame_system::pallet_prelude::*;
     use frame_support::{
         dispatch::DispatchResultWithPostInfo,
@@ -25,11 +26,14 @@ pub mod pallet {
     #[pallet::config]
     pub trait Config: frame_system::Config {
 
+        /// LOC identifier
+        type LocId: Member + Parameter + Default + Copy + HasCompact;
+
         /// Implementation of recovery config creation
         type CreateRecoveryCallFactory: CreateRecoveryCallFactory<Self::RuntimeOrigin, Self::AccountId, Self::BlockNumber>;
 
         /// Query for checking the existence of a closed Identity LOC
-        type LocQuery: LocQuery<Self::AccountId>;
+        type LocQuery: LocQuery<Self::LocId, Self::AccountId>;
 
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
