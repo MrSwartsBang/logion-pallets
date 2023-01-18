@@ -22,7 +22,7 @@ fn it_creates_vote() {
                 ]
             }));
         assert_eq!(LogionVote::votes(2), None);
-        assert_eq!(LogionVote::is_vote_completed(vote_id), (false, false))
+        assert_eq!(LogionVote::is_vote_closed_and_approved(vote_id), (false, false))
     });
 }
 
@@ -59,7 +59,7 @@ fn it_votes_yes() {
                     Ballot { voter: LEGAL_OFFICER2, status: BallotStatus::NotVoted },
                 ]
             }));
-        assert_eq!(LogionVote::is_vote_completed(vote_id), (false, false))
+        assert_eq!(LogionVote::is_vote_closed_and_approved(vote_id), (false, false))
     });
 }
 
@@ -79,7 +79,7 @@ fn it_votes_yes_and_no() {
                     Ballot { voter: LEGAL_OFFICER2, status: BallotStatus::VotedNo },
                 ]
             }));
-        assert_eq!(LogionVote::is_vote_completed(vote_id), (true, false))
+        assert_eq!(LogionVote::is_vote_closed_and_approved(vote_id), (true, false))
     });
 }
 
@@ -99,7 +99,7 @@ fn it_votes_yes_and_yes() {
                     Ballot { voter: LEGAL_OFFICER2, status: BallotStatus::VotedYes },
                 ]
             }));
-        assert_eq!(LogionVote::is_vote_completed(vote_id), (true, true))
+        assert_eq!(LogionVote::is_vote_closed_and_approved(vote_id), (true, true))
     });
 }
 

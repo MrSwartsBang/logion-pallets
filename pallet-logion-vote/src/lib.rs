@@ -32,7 +32,7 @@ pub enum BallotStatus {
 }
 
 pub type VoteId = u64;
-pub type VoteCompleted = bool;
+pub type VoteClosed = bool;
 pub type VoteApproved = bool;
 
 #[frame_support::pallet]
@@ -83,8 +83,8 @@ pub mod pallet {
     pub enum Event<T: Config> {
         /// Issued upon new Vote creation. [voteId, legalOfficers]
         VoteCreated(VoteId, Vec<T::AccountId>),
-        /// Issued upon new Vote creation. [voteId, ballot, completed, approved]
-        VoteUpdated(VoteId, Ballot<T::AccountId>, VoteCompleted, VoteApproved),
+        /// Issued upon new Vote creation. [voteId, ballot, closed, approved]
+        VoteUpdated(VoteId, Ballot<T::AccountId>, VoteClosed, VoteApproved),
     }
 
     #[pallet::error]
@@ -157,11 +157,11 @@ pub mod pallet {
                         let mutable_vote = vote.as_mut().unwrap();
                         mutable_vote.ballots[ballot_index].status = status.clone();
                     });
-                    let (completed, approved) = Self::is_vote_completed(vote_id);
+                    let (closed, approved) = Self::is_vote_closed_and_approved(vote_id);
                     Self::deposit_event(Event::VoteUpdated(
                         vote_id,
                         Ballot { status: status.clone(), voter: who },
-                        completed,
+                        closed,
                         approved)
                     );
                     Ok(().into())
@@ -171,7 +171,7 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
-        pub fn is_vote_completed(vote_id: VoteId) -> (VoteCompleted, VoteApproved) {
+        pub fn is_vote_closed_and_approved(vote_id: VoteId) -> (VoteClosed, VoteApproved) {
             let vote = <Votes<T>>::get(vote_id).unwrap();
             let not_voted = vote.ballots.iter().find(|ballot| ballot.status == NotVoted);
             match not_voted {
