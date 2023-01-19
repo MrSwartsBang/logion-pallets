@@ -32,7 +32,7 @@ pub enum BallotStatus {
 }
 
 pub type VoteId = u64;
-pub type VoteCompleted = bool;
+pub type VoteClosed = bool;
 pub type VoteApproved = bool;
 
 #[frame_support::pallet]
@@ -44,7 +44,7 @@ pub mod pallet {
     };
     use frame_system::ensure_signed;
     use frame_system::pallet_prelude::OriginFor;
-    use logion_shared::{IsLegalOfficer, LocValidity};
+    use logion_shared::{IsLegalOfficer, LegalOfficerCreation, LocQuery, LocValidity};
     use crate::BallotStatus::{NotVoted, VotedNo, VotedYes};
     use super::*;
 
@@ -61,6 +61,12 @@ pub mod pallet {
 
         /// Query for checking the existence of a closed Identity LOC
         type LocValidity: LocValidity<Self::LocId, Self::AccountId>;
+
+        /// Query for retrieving LOC
+        type LocQuery: LocQuery<Self::LocId, Self::AccountId>;
+
+        /// Creation of a guest LO
+        type LegalOfficerCreation: LegalOfficerCreation<Self::AccountId>;
     }
 
     #[pallet::pallet]
@@ -83,8 +89,8 @@ pub mod pallet {
     pub enum Event<T: Config> {
         /// Issued upon new Vote creation. [voteId, legalOfficers]
         VoteCreated(VoteId, Vec<T::AccountId>),
-        /// Issued upon new Vote creation. [voteId, ballot, completed, approved]
-        VoteUpdated(VoteId, Ballot<T::AccountId>, VoteCompleted, VoteApproved),
+        /// Issued upon new Vote creation. [voteId, ballot, closed, approved]
+        VoteUpdated(VoteId, Ballot<T::AccountId>, VoteClosed, VoteApproved),
     }
 
     #[pallet::error]
@@ -101,7 +107,6 @@ pub mod pallet {
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
-
         /// Creates a new Vote.
         #[pallet::weight(0)]
         pub fn create_vote_for_all_legal_officers(
@@ -157,13 +162,19 @@ pub mod pallet {
                         let mutable_vote = vote.as_mut().unwrap();
                         mutable_vote.ballots[ballot_index].status = status.clone();
                     });
-                    let (completed, approved) = Self::is_vote_completed(vote_id);
+                    let (closed, approved) = Self::is_vote_closed_and_approved(vote_id);
                     Self::deposit_event(Event::VoteUpdated(
                         vote_id,
                         Ballot { status: status.clone(), voter: who },
-                        completed,
+                        closed,
                         approved)
                     );
+                    if closed && approved {
+                        let result = Self::add_guest_legal_officer(vote.loc_id);
+                        if result.is_err() {
+                            return result
+                        }
+                    }
                     Ok(().into())
                 }
             }
@@ -171,7 +182,7 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
-        pub fn is_vote_completed(vote_id: VoteId) -> (VoteCompleted, VoteApproved) {
+        pub fn is_vote_closed_and_approved(vote_id: VoteId) -> (VoteClosed, VoteApproved) {
             let vote = <Votes<T>>::get(vote_id).unwrap();
             let not_voted = vote.ballots.iter().find(|ballot| ballot.status == NotVoted);
             match not_voted {
@@ -181,6 +192,21 @@ pub mod pallet {
                     match voted_no {
                         Some(_) => (true, false),
                         None => (true, true)
+                    }
+                }
+            }
+        }
+
+        fn add_guest_legal_officer(loc_id: T::LocId) -> DispatchResultWithPostInfo {
+            let option_loc = T::LocQuery::get_loc(&loc_id);
+            match option_loc {
+                None => Err(Error::<T>::InvalidLoc)?,
+                Some(loc) => {
+                    match loc.requester {
+                        None => Err(Error::<T>::InvalidLoc)?,
+                        Some(requester) => {
+                            T::LegalOfficerCreation::add_guest_legal_officer( requester, loc.owner)
+                        }
                     }
                 }
             }

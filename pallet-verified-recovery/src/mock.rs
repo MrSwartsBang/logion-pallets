@@ -1,5 +1,5 @@
 use crate::{self as pallet_verified_recovery};
-use logion_shared::{LocQuery, CreateRecoveryCallFactory};
+use logion_shared::{LocQuery, CreateRecoveryCallFactory, LegalOfficerCaseSummary};
 use sp_core::hash::H256;
 use frame_support::{parameter_types};
 use sp_runtime::{
@@ -69,16 +69,21 @@ pub const LEGAL_OFFICER_PENDING_OR_OPEN_ID2: u64 = 4;
 pub const USER_ID: u64 = 5;
 
 pub struct LocQueryMock;
-impl LocQuery<<Test as system::Config>::AccountId> for LocQueryMock {
+impl LocQuery<<Test as pallet_verified_recovery::Config>::LocId, <Test as system::Config>::AccountId> for LocQueryMock {
     fn has_closed_identity_locs(
         account: &<Test as system::Config>::AccountId,
         legal_officers: &Vec<<Test as system::Config>::AccountId>
     ) -> bool {
         return *account == USER_ID && legal_officers[0] == LEGAL_OFFICER_CLOSED_ID1 && legal_officers[1] == LEGAL_OFFICER_CLOSED_ID2;
     }
+
+    fn get_loc(_loc_id: &<Test as pallet_verified_recovery::Config>::LocId) -> Option<LegalOfficerCaseSummary<<Test as system::Config>::AccountId>> {
+        return None;
+    }
 }
 
 impl pallet_verified_recovery::Config for Test {
+    type LocId = u32;
     type CreateRecoveryCallFactory = CreateRecoveryCallFactoryMock;
     type LocQuery = LocQueryMock;
     type RuntimeEvent = RuntimeEvent;
