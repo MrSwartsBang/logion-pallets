@@ -1,7 +1,8 @@
 use frame_support::{assert_err, assert_ok};
 use sp_runtime::DispatchError::BadOrigin;
+
+use crate::{Ballot, BallotStatus, Error, Event, Vote};
 use crate::mock::*;
-use crate::{Ballot, BallotStatus, Error, Vote};
 
 const WRONG_LOC_ID: u32 = 2;
 const WALLET_USER: u64 = 100;
@@ -22,7 +23,11 @@ fn it_creates_vote() {
                 ]
             }));
         assert_eq!(LogionVote::votes(2), None);
-        assert_eq!(LogionVote::is_vote_closed_and_approved(vote_id), (false, false))
+        assert_eq!(LogionVote::is_vote_closed_and_approved(vote_id), (false, false));
+        System::assert_has_event(Event::VoteCreated(
+            vote_id,
+            vec![HOST_LEGAL_OFFICER, LEGAL_OFFICER2]
+        ).into());
     });
 }
 
@@ -59,7 +64,13 @@ fn it_votes_yes() {
                     Ballot { voter: LEGAL_OFFICER2, status: BallotStatus::NotVoted },
                 ]
             }));
-        assert_eq!(LogionVote::is_vote_closed_and_approved(vote_id), (false, false))
+        assert_eq!(LogionVote::is_vote_closed_and_approved(vote_id), (false, false));
+        System::assert_has_event(Event::VoteUpdated(
+            vote_id,
+            Ballot { voter: HOST_LEGAL_OFFICER, status: BallotStatus::VotedYes },
+            false,
+            false,
+        ).into());
     });
 }
 
@@ -79,7 +90,19 @@ fn it_votes_yes_and_no() {
                     Ballot { voter: LEGAL_OFFICER2, status: BallotStatus::VotedNo },
                 ]
             }));
-        assert_eq!(LogionVote::is_vote_closed_and_approved(vote_id), (true, false))
+        assert_eq!(LogionVote::is_vote_closed_and_approved(vote_id), (true, false));
+        System::assert_has_event(Event::VoteUpdated(
+            vote_id,
+            Ballot { voter: HOST_LEGAL_OFFICER, status: BallotStatus::VotedYes },
+            false,
+            false,
+        ).into());
+        System::assert_has_event(Event::VoteUpdated(
+            vote_id,
+            Ballot { voter: LEGAL_OFFICER2, status: BallotStatus::VotedNo },
+            true,
+            false,
+        ).into());
     });
 }
 
@@ -99,7 +122,19 @@ fn it_votes_yes_and_yes() {
                     Ballot { voter: LEGAL_OFFICER2, status: BallotStatus::VotedYes },
                 ]
             }));
-        assert_eq!(LogionVote::is_vote_closed_and_approved(vote_id), (true, true))
+        assert_eq!(LogionVote::is_vote_closed_and_approved(vote_id), (true, true));
+        System::assert_has_event(Event::VoteUpdated(
+            vote_id,
+            Ballot { voter: HOST_LEGAL_OFFICER, status: BallotStatus::VotedYes },
+            false,
+            false,
+        ).into());
+        System::assert_has_event(Event::VoteUpdated(
+            vote_id,
+            Ballot { voter: LEGAL_OFFICER2, status: BallotStatus::VotedYes },
+            true,
+            true,
+        ).into());
     });
 }
 

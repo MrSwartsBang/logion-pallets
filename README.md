@@ -6,6 +6,7 @@ This repo groups all logion pallets and their shared library in a single place:
 - [pallet-lo-authority-list](https://github.com/logion-network/logion-pallets/blob/main/pallet-lo-authority-list): logion Legal Officers authority list management
 - [pallet-logion-loc](https://github.com/logion-network/logion-pallets/blob/main/pallet-logion-loc): Legal Officer Cases implementation
 - [pallet-logion-vault](https://github.com/logion-network/logion-pallets/blob/main/pallet-logion-vault): logion Vault implementation (using FRAME's multisig pallet)
+- [pallet-logion-vote](https://github.com/logion-network/logion-pallets/blob/main/pallet-logion-vote): logion Vote management
 - [pallet-verified-recovery](https://github.com/logion-network/logion-pallets/blob/main/pallet-verified-recovery): logion Recovery implementation (using FRAME's recovery pallet)
 
 ## History
