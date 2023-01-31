@@ -108,6 +108,7 @@ pub mod pallet {
     #[pallet::call]
     impl<T: Config> Pallet<T> {
         /// Creates a new Vote.
+        #[pallet::call_index(0)]
         #[pallet::weight(0)]
         pub fn create_vote_for_all_legal_officers(
             origin: OriginFor<T>,
@@ -134,6 +135,7 @@ pub mod pallet {
         }
 
         /// Vote.
+        #[pallet::call_index(1)]
         #[pallet::weight(0)]
         pub fn vote(
             origin: OriginFor<T>,

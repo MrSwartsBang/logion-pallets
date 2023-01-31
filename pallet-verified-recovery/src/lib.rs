@@ -66,6 +66,7 @@ pub mod pallet {
     impl<T:Config> Pallet<T> {
 
         /// Create a recovery configuration for your account. The legal officers must all have closed their Identity LOC.
+        #[pallet::call_index(0)]
         #[pallet::weight(T::WeightInfo::create_recovery())]
         pub fn create_recovery(
             origin: OriginFor<T>,

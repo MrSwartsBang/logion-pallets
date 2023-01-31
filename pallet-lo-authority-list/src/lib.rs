@@ -161,6 +161,7 @@ pub mod pallet {
     impl<T:Config> Pallet<T> {
 
         /// Adds a new LO to the list
+        #[pallet::call_index(0)]
         #[pallet::weight(0)]
         pub fn add_legal_officer(
             origin: OriginFor<T>,
@@ -175,6 +176,7 @@ pub mod pallet {
         }
 
         /// Removes a LO from the list
+        #[pallet::call_index(1)]
         #[pallet::weight(0)]
         pub fn remove_legal_officer(
             origin: OriginFor<T>,
@@ -196,6 +198,7 @@ pub mod pallet {
         }
 
         /// Updates an existing LO's data
+        #[pallet::call_index(2)]
         #[pallet::weight(0)]
         pub fn update_legal_officer(
             origin: OriginFor<T>,

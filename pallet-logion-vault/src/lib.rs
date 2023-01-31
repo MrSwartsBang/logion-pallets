@@ -72,6 +72,7 @@ pub mod pallet {
     impl<T:Config> Pallet<T> {
 
         /// Create a vault transfer. The creator must not be a legal officer.
+        #[pallet::call_index(0)]
         #[pallet::weight({
             // Weight computation comes from multisig pallet
             let s = legal_officers.len() as u32;
@@ -101,6 +102,7 @@ pub mod pallet {
         }
 
         /// Approves a vault transfer.
+        #[pallet::call_index(1)]
         #[pallet::weight({
             // Weight computation comes from multisig pallet
             let s = other_signatories.len() as u32;

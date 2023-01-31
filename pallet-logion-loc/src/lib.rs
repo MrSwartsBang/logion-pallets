@@ -329,6 +329,7 @@ pub mod pallet {
     impl<T:Config> Pallet<T> {
 
         /// Creates a new Polkadot Identity LOC i.e. a LOC linking a real identity to an AccountId.
+        #[pallet::call_index(0)]
         #[pallet::weight(T::WeightInfo::create_polkadot_identity_loc())]
         pub fn create_polkadot_identity_loc(
             origin: OriginFor<T>,
@@ -352,6 +353,7 @@ pub mod pallet {
         }
 
         /// Creates a new logion Identity LOC i.e. a LOC describing a real identity not yet linked to an AccountId
+        #[pallet::call_index(1)]
         #[pallet::weight(T::WeightInfo::create_logion_identity_loc())]
         pub fn create_logion_identity_loc(
             origin: OriginFor<T>,
@@ -372,6 +374,7 @@ pub mod pallet {
         }
 
         /// Creates a new Polkadot Transaction LOC i.e. a LOC requested with an AccountId
+        #[pallet::call_index(2)]
         #[pallet::weight(T::WeightInfo::create_polkadot_transaction_loc())]
         pub fn create_polkadot_transaction_loc(
             origin: OriginFor<T>,
@@ -395,6 +398,7 @@ pub mod pallet {
         }
 
         /// Creates a new logion Transaction LOC i.e. a LOC requested with a logion Identity LOC
+        #[pallet::call_index(3)]
         #[pallet::weight(T::WeightInfo::create_logion_transaction_loc())]
         pub fn create_logion_transaction_loc(
             origin: OriginFor<T>,
@@ -426,6 +430,7 @@ pub mod pallet {
         }
 
         /// Creates a new Collection LOC
+        #[pallet::call_index(4)]
         #[pallet::weight(T::WeightInfo::create_collection_loc())]
         pub fn create_collection_loc(
             origin: OriginFor<T>,
@@ -462,6 +467,7 @@ pub mod pallet {
         }
 
         /// Add LOC metadata
+        #[pallet::call_index(5)]
         #[pallet::weight(T::WeightInfo::add_metadata())]
         pub fn add_metadata(
             origin: OriginFor<T>,
@@ -501,6 +507,7 @@ pub mod pallet {
         }
 
         /// Add file to LOC
+        #[pallet::call_index(6)]
         #[pallet::weight(T::WeightInfo::add_file())]
         pub fn add_file(
             origin: OriginFor<T>,
@@ -537,6 +544,7 @@ pub mod pallet {
         }
 
         /// Add a link to LOC
+        #[pallet::call_index(7)]
         #[pallet::weight(T::WeightInfo::add_link())]
         pub fn add_link(
             origin: OriginFor<T>,
@@ -575,6 +583,7 @@ pub mod pallet {
         }
 
         /// Close LOC.
+        #[pallet::call_index(8)]
         #[pallet::weight(T::WeightInfo::close())]
         pub fn close(
             origin: OriginFor<T>,
@@ -584,6 +593,7 @@ pub mod pallet {
         }
 
         /// Close and seal LOC.
+        #[pallet::call_index(9)]
         #[pallet::weight(T::WeightInfo::close())]
         pub fn close_and_seal(
             origin: OriginFor<T>,
@@ -594,6 +604,7 @@ pub mod pallet {
         }
 
         /// Make a LOC void.
+        #[pallet::call_index(10)]
         #[pallet::weight(T::WeightInfo::make_void())]
         pub fn make_void(
             origin: OriginFor<T>,
@@ -603,6 +614,7 @@ pub mod pallet {
         }
 
         /// Make a LOC void and provide a replacer.
+        #[pallet::call_index(11)]
         #[pallet::weight(T::WeightInfo::make_void_and_replace())]
         pub fn make_void_and_replace(
             origin: OriginFor<T>,
@@ -613,6 +625,7 @@ pub mod pallet {
         }
 
         /// Adds an item to a collection
+        #[pallet::call_index(12)]
         #[pallet::weight(T::WeightInfo::add_collection_item())]
         pub fn add_collection_item(
             origin: OriginFor<T>,
@@ -625,6 +638,7 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo { Self::do_add_collection_item(origin, collection_loc_id, item_id, item_description, item_files, item_token, restricted_delivery, Vec::new()) }
 
         /// Adds an item with terms and conditions to a collection
+        #[pallet::call_index(13)]
         #[pallet::weight(T::WeightInfo::add_collection_item())]
         pub fn add_collection_item_with_terms_and_conditions(
             origin: OriginFor<T>,
