@@ -49,6 +49,9 @@ pub trait WeightInfo {
     fn make_void_and_replace() -> Weight;
     fn create_collection_loc() -> Weight;
     fn add_collection_item() -> Weight;
+    fn add_issuer() -> Weight;
+    fn remove_issuer() -> Weight;
+    fn add_tokens_record() -> Weight;
 }
 
 /// Weights for pallet_logion_loc using the Substrate node and recommended hardware.
@@ -110,6 +113,21 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().writes(2))
     }
     fn add_collection_item() -> Weight {
+        Weight::from_ref_time(31_621_000)
+            .saturating_add(T::DbWeight::get().reads(3))
+            .saturating_add(T::DbWeight::get().writes(2))
+    }
+    fn add_issuer() -> Weight {
+        Weight::from_ref_time(11_971_000)
+            .saturating_add(T::DbWeight::get().reads(1))
+            .saturating_add(T::DbWeight::get().writes(1))
+    }
+    fn remove_issuer() -> Weight {
+        Weight::from_ref_time(11_971_000)
+            .saturating_add(T::DbWeight::get().reads(1))
+            .saturating_add(T::DbWeight::get().writes(1))
+    }
+    fn add_tokens_record() -> Weight {
         Weight::from_ref_time(31_621_000)
             .saturating_add(T::DbWeight::get().reads(3))
             .saturating_add(T::DbWeight::get().writes(2))
@@ -178,4 +196,19 @@ impl WeightInfo for () {
       .saturating_add(RocksDbWeight::get().reads(3))
       .saturating_add(RocksDbWeight::get().writes(2))
   }
+  fn add_issuer() -> Weight {
+    Weight::from_ref_time(11_971_000)
+      .saturating_add(RocksDbWeight::get().reads(1))
+      .saturating_add(RocksDbWeight::get().writes(1))
+  }
+  fn remove_issuer() -> Weight {
+    Weight::from_ref_time(11_971_000)
+      .saturating_add(RocksDbWeight::get().reads(1))
+      .saturating_add(RocksDbWeight::get().writes(1))
+  }
+  fn add_tokens_record() -> Weight {
+    Weight::from_ref_time(31_621_000)
+      .saturating_add(RocksDbWeight::get().reads(3))
+      .saturating_add(RocksDbWeight::get().writes(2))
+}
 }

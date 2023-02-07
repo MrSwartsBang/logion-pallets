@@ -13,8 +13,12 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-use frame_support::codec::{Decode, Encode};
-use frame_support::dispatch::Vec;
+use frame_support::{
+    BoundedVec,
+    bounded_vec,
+    codec::{Decode, Encode},
+    dispatch::Vec,
+};
 use scale_info::TypeInfo;
 use logion_shared::LegalOfficerCaseSummary;
 use crate::Requester::Account;
@@ -76,7 +80,7 @@ impl<AccountId, LocId> Default for Requester<AccountId, LocId> {
 pub type CollectionSize = u32;
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-pub struct LegalOfficerCase<AccountId, Hash, LocId, BlockNumber> {
+pub struct LegalOfficerCase<AccountId, Hash, LocId, BlockNumber, BoundedIssuersList> {
     owner: AccountId,
     requester: Requester<AccountId, LocId>,
     metadata: Vec<MetadataItem<AccountId>>,
@@ -90,9 +94,16 @@ pub struct LegalOfficerCase<AccountId, Hash, LocId, BlockNumber> {
     collection_max_size: Option<CollectionSize>,
     collection_can_upload: bool,
     seal: Option<Hash>,
+    issuers: BoundedIssuersList,
 }
 
-pub type LegalOfficerCaseOf<T> = LegalOfficerCase<<T as frame_system::Config>::AccountId, <T as pallet::Config>::Hash, <T as pallet::Config>::LocId, <T as frame_system::Config>::BlockNumber>;
+pub type LegalOfficerCaseOf<T> = LegalOfficerCase<
+    <T as frame_system::Config>::AccountId,
+    <T as pallet::Config>::Hash,
+    <T as pallet::Config>::LocId,
+    <T as frame_system::Config>::BlockNumber,
+    BoundedVec<<T as frame_system::Config>::AccountId, <T as Config>::MaxIssuers>,
+>;
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
 pub struct TermsAndConditionsElement<LocId> {
@@ -127,6 +138,39 @@ pub struct CollectionItemToken {
     token_type: Vec<u8>,
     token_id: Vec<u8>,
 }
+
+#[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
+pub struct TokensRecord<BoundedDescription, BoundedTokensRecordFilesList, AccountId> {
+    description: BoundedDescription,
+    files: BoundedTokensRecordFilesList,
+    submitter: AccountId,
+}
+
+pub type TokensRecordOf<T> = TokensRecord<
+    BoundedVec<u8, <T as pallet::Config>::MaxTokensRecordDescriptionSize>,
+    BoundedVec<TokensRecordFileOf<T>, <T as pallet::Config>::MaxTokensRecordFiles>,
+    <T as frame_system::Config>::AccountId,
+>;
+
+#[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
+pub struct TokensRecordFile<Hash, BoundedName, BoundedContentType> {
+    name: BoundedName,
+    content_type: BoundedContentType,
+    size: u32,
+    hash: Hash,
+}
+
+pub type TokensRecordFileOf<T> = TokensRecordFile<
+    <T as pallet::Config>::Hash,
+    BoundedVec<u8, <T as pallet::Config>::MaxFileNameSize>,
+    BoundedVec<u8, <T as pallet::Config>::MaxFileContentTypeSize>,
+>;
+
+pub type UnboundedTokensRecordFileOf<T> = TokensRecordFile<
+    <T as pallet::Config>::Hash,
+    Vec<u8>,
+    Vec<u8>,
+>;
 
 pub mod weights;
 
@@ -183,6 +227,24 @@ pub mod pallet {
 
         /// Query for checking that a signer is a legal officer
         type IsLegalOfficer: IsLegalOfficer<Self::AccountId, Self::RuntimeOrigin>;
+
+        /// Token Record identifier
+        type TokensRecordId: Member + Parameter + Default + Copy;
+
+        /// The maximum size of a Token Record description
+        type MaxTokensRecordDescriptionSize: Get<u32>;
+
+        /// The maximum size of a file name
+        type MaxFileNameSize: Get<u32>;
+
+        /// The maximum size of a file's content type
+        type MaxFileContentTypeSize: Get<u32>;
+
+        /// The maximum number of issuers per collection LOC
+        type MaxIssuers: Get<u32>;
+
+        /// The maximum number of files per token record
+        type MaxTokensRecordFiles: Get<u32>;
     }
 
     #[pallet::pallet]
@@ -215,6 +277,11 @@ pub mod pallet {
     #[pallet::getter(fn collection_size)]
     pub type CollectionSizeMap<T> = StorageMap<_, Blake2_128Concat, <T as Config>::LocId, CollectionSize>;
 
+    /// Collection documentation by LOC ID.
+    #[pallet::storage]
+    #[pallet::getter(fn tokens_records)]
+    pub type TokensRecordsMap<T> = StorageDoubleMap<_, Blake2_128Concat, <T as Config>::LocId, Blake2_128Concat, <T as Config>::TokensRecordId, TokensRecordOf<T>>;
+
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
@@ -226,6 +293,8 @@ pub mod pallet {
         LocVoid(T::LocId),
         /// Issued when an item was added to a collection. [locId, collectionItemId]
         ItemAdded(T::LocId, T::CollectionItemId),
+        /// Issued when a record was added to a collection. [locId, recordId]
+        RecordAdded(T::LocId, T::TokensRecordId),
     }
 
     #[pallet::error]
@@ -296,6 +365,19 @@ pub mod pallet {
         DuplicateLocMetadata,
         /// Cannot add several links with same target to LOC
         DuplicateLocLink,
+        /// Call not supported because target LOC not the expected type
+        WrongLocType,
+        /// Given address is already an issuer
+        DuplicateIssuer,
+        /// Given address is not an issuer of target LOC
+        NotAnIssuer,
+        /// Token Record cannot be added because some fields contain too many bytes
+        TokensRecordTooMuchData,
+        /// A token record with the same identifier already exists
+        TokensRecordAlreadyExists,
+        /// The token record cannot be added because either the collection is in a wrong state
+        /// or the submitter is not an issuer or the requester
+        CannotAddRecord,
     }
 
     #[pallet::hooks]
@@ -650,6 +732,146 @@ pub mod pallet {
             restricted_delivery: bool,
             terms_and_conditions: Vec<TermsAndConditionsElement<<T as pallet::Config>::LocId>>,
         ) -> DispatchResultWithPostInfo { Self::do_add_collection_item(origin, collection_loc_id, item_id, item_description, item_files, item_token, restricted_delivery, terms_and_conditions) }
+
+        /// Add an issuer
+        #[pallet::call_index(14)]
+        #[pallet::weight(T::WeightInfo::add_issuer())]
+        pub fn add_issuer(
+            origin: OriginFor<T>,
+            #[pallet::compact] loc_id: T::LocId,
+            issuer: T::AccountId,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+
+            if !<LocMap<T>>::contains_key(&loc_id) {
+                Err(Error::<T>::NotFound)?
+            } else {
+                let loc = <LocMap<T>>::get(&loc_id).unwrap();
+                if loc.owner != who {
+                    Err(Error::<T>::Unauthorized)?
+                } else if loc.closed {
+                    Err(Error::<T>::CannotMutate)?
+                } else if loc.void_info.is_some() {
+                    Err(Error::<T>::CannotMutateVoid)?
+                } else if loc.loc_type != LocType::Collection {
+                    Err(Error::<T>::WrongLocType)?
+                } else {
+                    if loc.issuers.iter().find(|loc_issuer| **loc_issuer == issuer).is_some() {
+                        Err(Error::<T>::DuplicateIssuer)?
+                    }
+                    <LocMap<T>>::mutate(loc_id, |loc| {
+                        let mutable_loc = loc.as_mut().unwrap();
+                        if mutable_loc.issuers.try_push(issuer).is_err() {
+                            Err(Error::<T>::TokensRecordTooMuchData)
+                        } else {
+                            Ok(())
+                        }
+                    })?;
+                    Ok(().into())
+                }
+            }
+        }
+
+        /// Remove an issuer
+        #[pallet::call_index(15)]
+        #[pallet::weight(T::WeightInfo::remove_issuer())]
+        pub fn remove_issuer(
+            origin: OriginFor<T>,
+            #[pallet::compact] loc_id: T::LocId,
+            issuer: T::AccountId,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+            if !<LocMap<T>>::contains_key(&loc_id) {
+                Err(Error::<T>::NotFound)?
+            } else {
+                let loc = <LocMap<T>>::get(&loc_id).unwrap();
+                if loc.owner != who {
+                    Err(Error::<T>::Unauthorized)?
+                } else if loc.closed {
+                    Err(Error::<T>::CannotMutate)?
+                } else if loc.void_info.is_some() {
+                    Err(Error::<T>::CannotMutateVoid)?
+                } else if loc.loc_type != LocType::Collection {
+                    Err(Error::<T>::WrongLocType)?
+                } else {
+                    let mut issuer_index = loc.issuers.len();
+                    for i in 0..(loc.issuers.len()) {
+                        if loc.issuers[i] == issuer {
+                            issuer_index = i;
+                        }
+                    }
+                    if issuer_index == loc.issuers.len() {
+                        Err(Error::<T>::NotAnIssuer)?
+                    }
+                    <LocMap<T>>::mutate(loc_id, |loc| {
+                        let mutable_loc = loc.as_mut().unwrap();
+                        mutable_loc.issuers.remove(issuer_index);
+                    });
+                    Ok(().into())
+                }
+            }
+        }
+
+        /// Add token record
+        #[pallet::call_index(16)]
+        #[pallet::weight(T::WeightInfo::add_tokens_record())]
+        pub fn add_tokens_record(
+            origin: OriginFor<T>,
+            #[pallet::compact] collection_loc_id: T::LocId,
+            record_id: T::TokensRecordId,
+            description: Vec<u8>,
+            files: Vec<UnboundedTokensRecordFileOf<T>>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+
+            let collection_loc_option = <LocMap<T>>::get(&collection_loc_id);
+            match collection_loc_option {
+                None => Err(Error::<T>::WrongCollectionLoc)?,
+                Some(collection_loc) => {
+                    if <TokensRecordsMap<T>>::contains_key(&collection_loc_id, &record_id) {
+                        Err(Error::<T>::TokensRecordAlreadyExists)?
+                    }
+                    if ! Self::can_add_record(&who, &collection_loc) {
+                        Err(Error::<T>::CannotAddRecord)?
+                    }
+                    if files.len() == 0 {
+                        Err(Error::<T>::MustUpload)?
+                    } else {
+                        let files_hashes: Vec<<T as Config>::Hash> = files.iter()
+                            .map(|file| file.hash)
+                            .collect();
+                        if !Self::has_unique_elements(&files_hashes) {
+                            Err(Error::<T>::DuplicateFile)?
+                        }
+                    }
+
+                    let bounded_description: BoundedVec<u8, T::MaxTokensRecordDescriptionSize> =
+                        description.clone().try_into().map_err(|_| Error::<T>::TokensRecordTooMuchData)?;
+                    let mut bounded_files: BoundedVec<TokensRecordFileOf<T>, T::MaxTokensRecordFiles> = bounded_vec![];
+                    for unbounded_file in files.iter() {
+                        let bounded_name =
+                            unbounded_file.name.clone().try_into().map_err(|_| Error::<T>::TokensRecordTooMuchData)?;
+                        let bounded_content_type =
+                            unbounded_file.content_type.clone().try_into().map_err(|_| Error::<T>::TokensRecordTooMuchData)?;
+                        bounded_files.try_push(TokensRecordFile {
+                            name: bounded_name,
+                            content_type: bounded_content_type,
+                            hash: unbounded_file.hash,
+                            size: unbounded_file.size,
+                        }).map_err(|_| Error::<T>::TokensRecordTooMuchData)?;
+                    }
+                    let record = TokensRecord {
+                        description: bounded_description,
+                        files: bounded_files,
+                        submitter: who,
+                    };
+                    <TokensRecordsMap<T>>::insert(collection_loc_id, record_id, record);
+                },
+            }
+
+            Self::deposit_event(Event::RecordAdded(collection_loc_id, record_id));
+            Ok(().into())
+        }
     }
 
     impl<T: Config> LocQuery<T::LocId, <T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -825,6 +1047,7 @@ pub mod pallet {
                 collection_max_size: Option::None,
                 collection_can_upload: false,
                 seal: Option::None,
+                issuers: bounded_vec![],
             }
         }
 
@@ -849,6 +1072,7 @@ pub mod pallet {
                 collection_max_size: collection_max_size.clone(),
                 collection_can_upload,
                 seal: Option::None,
+                issuers: bounded_vec![],
             }
         }
 
@@ -994,6 +1218,16 @@ pub mod pallet {
 
             Self::deposit_event(Event::ItemAdded(collection_loc_id, item_id));
             Ok(().into())
+        }
+
+        fn can_add_record(who: &T::AccountId, collection_loc: &LegalOfficerCaseOf<T>) -> bool {
+            collection_loc.loc_type == LocType::Collection
+                && (
+                    match &collection_loc.requester { Requester::Account(requester) => requester == who, _ => false }
+                    || collection_loc.issuers.iter().find(|loc_issuer| *loc_issuer == who).is_some()
+                )
+                && collection_loc.closed
+                && collection_loc.void_info.is_none()
         }
     }
 }
