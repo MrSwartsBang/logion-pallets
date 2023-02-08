@@ -138,6 +138,15 @@ pub struct CollectionItemToken {
 }
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
+pub struct VerifiedIssuer<LocId> {
+    identity_loc: LocId,
+}
+
+pub type VerifiedIssuerOf<T> = VerifiedIssuer<
+    <T as pallet::Config>::LocId,
+>;
+
+#[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
 pub struct TokensRecord<BoundedDescription, BoundedTokensRecordFilesList, AccountId> {
     description: BoundedDescription,
     files: BoundedTokensRecordFilesList,
@@ -277,28 +286,41 @@ pub mod pallet {
     #[pallet::getter(fn tokens_records)]
     pub type TokensRecordsMap<T> = StorageDoubleMap<_, Blake2_128Concat, <T as Config>::LocId, Blake2_128Concat, <T as Config>::TokensRecordId, TokensRecordOf<T>>;
 
+    /// Verified Issuers by guardian
+    #[pallet::storage]
+    #[pallet::getter(fn verified_issuers)]
+    pub type VerifiedIssuersMap<T> = StorageDoubleMap<
+        _,
+        Blake2_128Concat,
+        <T as frame_system::Config>::AccountId, // guardian
+        Blake2_128Concat,
+        <T as frame_system::Config>::AccountId, // issuer
+        VerifiedIssuerOf<T>,
+    >;
+
     /// Verified Issuers by LOC
     #[pallet::storage]
     #[pallet::getter(fn verified_issuers_by_loc)]
     pub type VerifiedIssuersByLocMap<T> = StorageDoubleMap<
         _,
         Blake2_128Concat,
-        <T as Config>::LocId,
+        <T as Config>::LocId, // LOC
         Blake2_128Concat,
-        <T as frame_system::Config>::AccountId,
-        bool
+        <T as frame_system::Config>::AccountId, // issuer
+        ()
     >;
 
     /// LOCs by Verified Issuer
     #[pallet::storage]
     #[pallet::getter(fn locs_by_verified_issuer)]
-    pub type LocsByVerifiedIssuerMap<T> = StorageDoubleMap<
+    pub type LocsByVerifiedIssuerMap<T> = StorageNMap<
         _,
-        Blake2_128Concat,
-        <T as frame_system::Config>::AccountId,
-        Blake2_128Concat,
-        <T as Config>::LocId,
-        bool
+        (
+            NMapKey<Blake2_128Concat, <T as frame_system::Config>::AccountId>, // issuer
+            NMapKey<Blake2_128Concat, <T as frame_system::Config>::AccountId>, // guardian
+            NMapKey<Blake2_128Concat, <T as Config>::LocId>,
+        ),
+        ()
     >;
 
     #[pallet::event]
@@ -312,8 +334,6 @@ pub mod pallet {
         LocVoid(T::LocId),
         /// Issued when an item was added to a collection. [locId, collectionItemId]
         ItemAdded(T::LocId, T::CollectionItemId),
-        /// Issued when a record was added to a collection. [locId, recordId]
-        RecordAdded(T::LocId, T::TokensRecordId),
     }
 
     #[pallet::error]
@@ -384,8 +404,6 @@ pub mod pallet {
         DuplicateLocMetadata,
         /// Cannot add several links with same target to LOC
         DuplicateLocLink,
-        /// Call not supported because target LOC not the expected type
-        WrongLocType,
         /// Token Record cannot be added because some fields contain too many bytes
         TokensRecordTooMuchData,
         /// A token record with the same identifier already exists
@@ -393,6 +411,12 @@ pub mod pallet {
         /// The token record cannot be added because either the collection is in a wrong state
         /// or the submitter is not an issuer or the requester
         CannotAddRecord,
+        /// Given identity LOC does not exist or is invalid
+        InvalidIdentityLoc,
+        /// Issuer has already been nominated by the guardian
+        AlreadyNominated,
+        /// Issuer is not nominated by the guardian
+        NotNominated,
     }
 
     #[pallet::hooks]
@@ -748,8 +772,64 @@ pub mod pallet {
             terms_and_conditions: Vec<TermsAndConditionsElement<<T as pallet::Config>::LocId>>,
         ) -> DispatchResultWithPostInfo { Self::do_add_collection_item(origin, collection_loc_id, item_id, item_description, item_files, item_token, restricted_delivery, terms_and_conditions) }
 
-        /// Select/unselect an issuer
+        /// Nominate an issuer
         #[pallet::call_index(14)]
+        #[pallet::weight(T::WeightInfo::nominate_issuer())]
+        pub fn nominate_issuer(
+            origin: OriginFor<T>,
+            issuer: T::AccountId,
+            #[pallet::compact] identity_loc_id: T::LocId,
+        ) -> DispatchResultWithPostInfo {
+            let who = T::IsLegalOfficer::ensure_origin(origin.clone())?;
+
+            let maybe_identity_loc = Self::loc(identity_loc_id);
+            if maybe_identity_loc.is_none() {
+                Err(Error::<T>::InvalidIdentityLoc)?
+            }
+            let identity_loc = maybe_identity_loc.unwrap();
+            if !identity_loc.closed
+                || identity_loc.void_info.is_some()
+                || match identity_loc.requester { Account(requester_account) => requester_account != issuer, _ => true } {
+                Err(Error::<T>::InvalidIdentityLoc)?
+            } else {
+                let existing_issuer = Self::verified_issuers(&who, &issuer);
+                if existing_issuer.is_some() {
+                    Err(Error::<T>::AlreadyNominated)?
+                }
+                <VerifiedIssuersMap<T>>::insert(&who, &issuer, VerifiedIssuer {
+                    identity_loc: identity_loc_id
+                });
+                Ok(().into())
+            }
+        }
+
+        /// Dismiss an issuer
+        #[pallet::call_index(15)]
+        #[pallet::weight(T::WeightInfo::dismiss_issuer())]
+        pub fn dismiss_issuer(
+            origin: OriginFor<T>,
+            issuer: T::AccountId,
+        ) -> DispatchResultWithPostInfo {
+            let who = T::IsLegalOfficer::ensure_origin(origin.clone())?;
+
+            let existing_issuer = Self::verified_issuers(&who, &issuer);
+            if existing_issuer.is_none() {
+                Err(Error::<T>::NotNominated)?
+            }
+            <VerifiedIssuersMap<T>>::remove(&who, &issuer);
+
+            let issuer_locs: Vec<T::LocId> = <LocsByVerifiedIssuerMap<T>>::drain_prefix((&issuer, &who))
+                .map(|entry| entry.0)
+                .collect();
+            issuer_locs.iter().for_each(|loc_id| {
+                <VerifiedIssuersByLocMap<T>>::remove(loc_id, &issuer);
+            });
+
+            Ok(().into())
+        }
+
+        /// Select/unselect an issuer on a given LOC
+        #[pallet::call_index(16)]
         #[pallet::weight(T::WeightInfo::set_issuer_selection())]
         pub fn set_issuer_selection(
             origin: OriginFor<T>,
@@ -757,7 +837,7 @@ pub mod pallet {
             issuer: T::AccountId,
             selected: bool,
         ) -> DispatchResultWithPostInfo {
-            let who = ensure_signed(origin)?;
+            let who = T::IsLegalOfficer::ensure_origin(origin.clone())?;
 
             if !<LocMap<T>>::contains_key(&loc_id) {
                 Err(Error::<T>::NotFound)?
@@ -767,20 +847,16 @@ pub mod pallet {
                     Err(Error::<T>::Unauthorized)?
                 } else if loc.void_info.is_some() {
                     Err(Error::<T>::CannotMutateVoid)?
-                } else if loc.loc_type != LocType::Collection {
-                    Err(Error::<T>::WrongLocType)?
+                } else if Self::verified_issuers(&who, &issuer).is_none() {
+                    Err(Error::<T>::NotNominated)?
                 } else {
                     let already_issuer = Self::verified_issuers_by_loc(loc_id, &issuer);
-                    if already_issuer.is_some() {
-                        <VerifiedIssuersByLocMap<T>>::mutate(loc_id, &issuer, |entry| {
-                            *entry = Some(selected);
-                        });
-                        <LocsByVerifiedIssuerMap<T>>::mutate(&issuer, loc_id, |entry| {
-                            *entry = Some(selected);
-                        });
-                    } else {
-                        <VerifiedIssuersByLocMap<T>>::insert(loc_id, &issuer, selected);
-                        <LocsByVerifiedIssuerMap<T>>::insert(&issuer, loc_id, selected);
+                    if already_issuer.is_some() && !selected {
+                        <VerifiedIssuersByLocMap<T>>::remove(loc_id, &issuer);
+                        <LocsByVerifiedIssuerMap<T>>::remove((&issuer, loc.owner, loc_id));
+                    } else if already_issuer.is_none() && selected {
+                        <VerifiedIssuersByLocMap<T>>::insert(loc_id, &issuer, ());
+                        <LocsByVerifiedIssuerMap<T>>::insert((&issuer, loc.owner, loc_id), ());
                     }
                     Ok(().into())
                 }
@@ -788,7 +864,7 @@ pub mod pallet {
         }
 
         /// Add token record
-        #[pallet::call_index(16)]
+        #[pallet::call_index(17)]
         #[pallet::weight(T::WeightInfo::add_tokens_record())]
         pub fn add_tokens_record(
             origin: OriginFor<T>,
@@ -844,7 +920,6 @@ pub mod pallet {
                 },
             }
 
-            Self::deposit_event(Event::RecordAdded(collection_loc_id, record_id));
             Ok(().into())
         }
     }
@@ -1199,7 +1274,7 @@ pub mod pallet {
                 && (
                     match &collection_loc.requester { Requester::Account(requester) => requester == who, _ => false }
                     || *who == collection_loc.owner
-                    || (verified_issuer.is_some() && verified_issuer.unwrap())
+                    || verified_issuer.is_some()
                 )
                 && collection_loc.closed
                 && collection_loc.void_info.is_none()

@@ -6,13 +6,15 @@ use sp_runtime::traits::Hash;
 
 use logion_shared::{LocQuery, LocValidity};
 
-use crate::{File, LegalOfficerCase, LocLink, LocType, MetadataItem, CollectionItem, CollectionItemFile, CollectionItemToken, mock::*, TermsAndConditionsElement, TokensRecordFile, UnboundedTokensRecordFileOf};
+use crate::{File, LegalOfficerCase, LocLink, LocType, MetadataItem, CollectionItem, CollectionItemFile, CollectionItemToken, mock::*, TermsAndConditionsElement, TokensRecordFile, UnboundedTokensRecordFileOf, VerifiedIssuer};
 use crate::Error;
 
 const LOC_ID: u32 = 0;
 const OTHER_LOC_ID: u32 = 1;
 const LOGION_CLASSIFICATION_LOC_ID: u32 = 2;
 const ADDITIONAL_TC_LOC_ID: u32 = 3;
+const ISSUER1_IDENTITY_LOC_ID: u32 = 4;
+const ISSUER2_IDENTITY_LOC_ID: u32 = 5;
 
 #[test]
 fn it_creates_loc() {
@@ -1040,15 +1042,46 @@ fn it_adds_several_metadata() {
 }
 
 #[test]
+fn it_nominates_an_issuer() {
+    new_test_ext().execute_with(|| {
+        nominate_issuer(ISSUER_ID1, ISSUER1_IDENTITY_LOC_ID);
+
+        assert_eq!(LogionLoc::verified_issuers(LOC_OWNER1, ISSUER_ID1), Some(VerifiedIssuer { identity_loc: ISSUER1_IDENTITY_LOC_ID }));
+    });
+}
+
+#[test]
+fn it_dismisses_an_issuer() {
+    new_test_ext().execute_with(|| {
+        nominate_issuer(ISSUER_ID1, ISSUER1_IDENTITY_LOC_ID);
+
+        assert_ok!(LogionLoc::dismiss_issuer(RuntimeOrigin::signed(LOC_OWNER1), ISSUER_ID1));
+
+        assert_eq!(LogionLoc::verified_issuers(LOC_OWNER1, ISSUER_ID1), None);
+    });
+}
+
+fn nominate_issuer(issuer: u64, identity_loc: u32) {
+    assert_ok!(LogionLoc::create_polkadot_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), identity_loc, issuer));
+    assert_ok!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), identity_loc));
+    assert_ok!(LogionLoc::nominate_issuer(RuntimeOrigin::signed(LOC_OWNER1), issuer, identity_loc));
+}
+
+#[test]
 fn it_selects_an_issuer() {
     new_test_ext().execute_with(|| {
-        assert_ok!(LogionLoc::create_collection_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID, None, Some(10), true));
+        create_collection_and_nominated_issuer();
 
         assert_ok!(LogionLoc::set_issuer_selection(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, ISSUER_ID1, true));
 
-        assert_eq!(LogionLoc::verified_issuers_by_loc(LOC_ID, ISSUER_ID1), Some(true));
-        assert_eq!(LogionLoc::locs_by_verified_issuer(ISSUER_ID1, LOC_ID), Some(true));
+        assert_eq!(LogionLoc::verified_issuers_by_loc(LOC_ID, ISSUER_ID1), Some(()));
+        assert_eq!(LogionLoc::locs_by_verified_issuer((ISSUER_ID1, LOC_OWNER1, LOC_ID)), Some(()));
     });
+}
+
+fn create_collection_and_nominated_issuer() {
+    assert_ok!(LogionLoc::create_collection_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID, None, Some(10), true));
+    nominate_issuer(ISSUER_ID1, ISSUER1_IDENTITY_LOC_ID);
 }
 
 #[test]
@@ -1059,18 +1092,27 @@ fn it_fails_selecting_an_issuer_loc_not_found() {
 }
 
 #[test]
-fn it_fails_selecting_an_issuer_unauthorized() {
+fn it_fails_selecting_an_issuer_not_nominated() {
     new_test_ext().execute_with(|| {
         assert_ok!(LogionLoc::create_collection_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID, None, Some(10), true));
 
-        assert_err!(LogionLoc::set_issuer_selection(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, ISSUER_ID1, true), Error::<Test>::Unauthorized);
+        assert_err!(LogionLoc::set_issuer_selection(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, ISSUER_ID1, true), Error::<Test>::NotNominated);
+    });
+}
+
+#[test]
+fn it_fails_selecting_an_issuer_unauthorized() {
+    new_test_ext().execute_with(|| {
+        create_collection_and_nominated_issuer();
+
+        assert_err!(LogionLoc::set_issuer_selection(RuntimeOrigin::signed(LOC_OWNER2), LOC_ID, ISSUER_ID1, true), Error::<Test>::Unauthorized);
     });
 }
 
 #[test]
 fn it_selects_an_issuer_closed() {
     new_test_ext().execute_with(|| {
-        assert_ok!(LogionLoc::create_collection_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID, None, Some(10), true));
+        create_collection_and_nominated_issuer();
         assert_ok!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
 
         assert_ok!(LogionLoc::set_issuer_selection(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, ISSUER_ID1, true));
@@ -1080,7 +1122,7 @@ fn it_selects_an_issuer_closed() {
 #[test]
 fn it_fails_selecting_an_issuer_void() {
     new_test_ext().execute_with(|| {
-        assert_ok!(LogionLoc::create_collection_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID, None, Some(10), true));
+        create_collection_and_nominated_issuer();
         assert_ok!(LogionLoc::make_void(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
 
         assert_err!(LogionLoc::set_issuer_selection(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, ISSUER_ID1, true), Error::<Test>::CannotMutateVoid);
@@ -1088,25 +1130,30 @@ fn it_fails_selecting_an_issuer_void() {
 }
 
 #[test]
-fn it_fails_selecting_an_issuer_not_collection() {
+fn it_selects_an_issuer_not_collection() {
     new_test_ext().execute_with(|| {
+        nominate_issuer(ISSUER_ID1, ISSUER1_IDENTITY_LOC_ID);
         assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
 
-        assert_err!(LogionLoc::set_issuer_selection(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, ISSUER_ID1, true), Error::<Test>::WrongLocType);
+        assert_ok!(LogionLoc::set_issuer_selection(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, ISSUER_ID1, true));
     });
 }
 
 #[test]
 fn it_unselects_an_issuer() {
     new_test_ext().execute_with(|| {
-        assert_ok!(LogionLoc::create_collection_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID, None, Some(10), true));
-        assert_ok!(LogionLoc::set_issuer_selection(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, ISSUER_ID1, true));
+        create_collection_with_selected_issuer();
 
         assert_ok!(LogionLoc::set_issuer_selection(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, ISSUER_ID1, false));
 
-        assert_eq!(LogionLoc::verified_issuers_by_loc(LOC_ID, ISSUER_ID1), Some(false));
-        assert_eq!(LogionLoc::locs_by_verified_issuer(ISSUER_ID1, LOC_ID), Some(false));
+        assert_eq!(LogionLoc::verified_issuers_by_loc(LOC_ID, ISSUER_ID1), None);
+        assert_eq!(LogionLoc::locs_by_verified_issuer((ISSUER_ID1, LOC_OWNER1, LOC_ID)), None);
     });
+}
+
+fn create_collection_with_selected_issuer() {
+    create_collection_and_nominated_issuer();
+    assert_ok!(LogionLoc::set_issuer_selection(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, ISSUER_ID1, true));
 }
 
 #[test]
@@ -1119,18 +1166,16 @@ fn it_fails_unselecting_an_issuer_loc_not_found() {
 #[test]
 fn it_fails_unselecting_an_issuer_unauthorized() {
     new_test_ext().execute_with(|| {
-        assert_ok!(LogionLoc::create_collection_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID, None, Some(10), true));
-        assert_ok!(LogionLoc::set_issuer_selection(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, ISSUER_ID1, true));
+        create_collection_with_selected_issuer();
 
-        assert_err!(LogionLoc::set_issuer_selection(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, ISSUER_ID1, false), Error::<Test>::Unauthorized);
+        assert_err!(LogionLoc::set_issuer_selection(RuntimeOrigin::signed(LOC_OWNER2), LOC_ID, ISSUER_ID1, false), Error::<Test>::Unauthorized);
     });
 }
 
 #[test]
 fn it_unselects_an_issuer_closed() {
     new_test_ext().execute_with(|| {
-        assert_ok!(LogionLoc::create_collection_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID, None, Some(10), true));
-        assert_ok!(LogionLoc::set_issuer_selection(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, ISSUER_ID1, true));
+        create_collection_with_selected_issuer();
         assert_ok!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
 
         assert_ok!(LogionLoc::set_issuer_selection(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, ISSUER_ID1, false));
@@ -1140,8 +1185,7 @@ fn it_unselects_an_issuer_closed() {
 #[test]
 fn it_fails_unselecting_an_issuer_void() {
     new_test_ext().execute_with(|| {
-        assert_ok!(LogionLoc::create_collection_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID, None, Some(10), true));
-        assert_ok!(LogionLoc::set_issuer_selection(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, ISSUER_ID1, true));
+        create_collection_with_selected_issuer();
         assert_ok!(LogionLoc::make_void(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
 
         assert_err!(LogionLoc::set_issuer_selection(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, ISSUER_ID1, false), Error::<Test>::CannotMutateVoid);
@@ -1149,11 +1193,22 @@ fn it_fails_unselecting_an_issuer_void() {
 }
 
 #[test]
-fn it_fails_unselecting_an_issuer_not_collection() {
+fn it_unselects_issuer_on_dismiss() {
     new_test_ext().execute_with(|| {
-        assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
+        create_closed_collection_with_selected_issuer();
+        nominate_issuer(ISSUER_ID2, ISSUER2_IDENTITY_LOC_ID);
+        assert_ok!(LogionLoc::set_issuer_selection(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, ISSUER_ID2, true));
+        assert!(LogionLoc::verified_issuers_by_loc(LOC_ID, ISSUER_ID1).is_some());
+        assert!(LogionLoc::verified_issuers_by_loc(LOC_ID, ISSUER_ID2).is_some());
+        assert!(LogionLoc::locs_by_verified_issuer((ISSUER_ID1, LOC_OWNER1, LOC_ID)).is_some());
+        assert!(LogionLoc::locs_by_verified_issuer((ISSUER_ID2, LOC_OWNER1, LOC_ID)).is_some());
 
-        assert_err!(LogionLoc::set_issuer_selection(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, ISSUER_ID1, false), Error::<Test>::WrongLocType);
+        assert_ok!(LogionLoc::dismiss_issuer(RuntimeOrigin::signed(LOC_OWNER1), ISSUER_ID1));
+
+        assert!(LogionLoc::verified_issuers_by_loc(LOC_ID, ISSUER_ID1).is_none());
+        assert!(LogionLoc::verified_issuers_by_loc(LOC_ID, ISSUER_ID2).is_some());
+        assert!(LogionLoc::locs_by_verified_issuer((ISSUER_ID1, LOC_OWNER1, LOC_ID)).is_none());
+        assert!(LogionLoc::locs_by_verified_issuer((ISSUER_ID2, LOC_OWNER1, LOC_ID)).is_some());
     });
 }
 
@@ -1164,7 +1219,7 @@ fn it_adds_tokens_record_issuer() {
 
 fn it_adds_tokens_record(submitter: u64) {
     new_test_ext().execute_with(|| {
-        create_collection_with_issuer();
+        create_closed_collection_with_selected_issuer();
         let record_id = build_record_id();
         let record_description = build_record_description();
         let record_files = build_record_files(1);
@@ -1182,9 +1237,8 @@ fn it_adds_tokens_record(submitter: u64) {
     });
 }
 
-fn create_collection_with_issuer() {
-    assert_ok!(LogionLoc::create_collection_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID, None, Some(10), true));
-    assert_ok!(LogionLoc::set_issuer_selection(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, ISSUER_ID1, true));
+fn create_closed_collection_with_selected_issuer() {
+    create_collection_with_selected_issuer();
     assert_ok!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
 }
 
@@ -1223,7 +1277,7 @@ fn it_adds_tokens_record_owner() {
 #[test]
 fn it_fails_adding_tokens_record_already_exists() {
     new_test_ext().execute_with(|| {
-        create_collection_with_issuer();
+        create_closed_collection_with_selected_issuer();
         let record_id = build_record_id();
         let record_description = build_record_description();
         let record_files = build_record_files(1);
@@ -1236,7 +1290,7 @@ fn it_fails_adding_tokens_record_already_exists() {
 #[test]
 fn it_fails_adding_tokens_record_not_contributor() {
     new_test_ext().execute_with(|| {
-        create_collection_with_issuer();
+        create_closed_collection_with_selected_issuer();
         let record_id = build_record_id();
         let record_description = build_record_description();
         let record_files = build_record_files(1);
@@ -1248,7 +1302,7 @@ fn it_fails_adding_tokens_record_not_contributor() {
 #[test]
 fn it_fails_adding_tokens_record_collection_open() {
     new_test_ext().execute_with(|| {
-        assert_ok!(LogionLoc::create_collection_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID, None, Some(10), true));
+        create_collection_with_selected_issuer();
         let record_id = build_record_id();
         let record_description = build_record_description();
         let record_files = build_record_files(1);
@@ -1260,7 +1314,7 @@ fn it_fails_adding_tokens_record_collection_open() {
 #[test]
 fn it_fails_adding_tokens_record_collection_void() {
     new_test_ext().execute_with(|| {
-        assert_ok!(LogionLoc::create_collection_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID, None, Some(10), true));
+        create_collection_with_selected_issuer();
         assert_ok!(LogionLoc::make_void(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
         let record_id = build_record_id();
         let record_description = build_record_description();
@@ -1285,7 +1339,7 @@ fn it_fails_adding_tokens_record_not_collection() {
 #[test]
 fn it_fails_adding_tokens_record_no_files() {
     new_test_ext().execute_with(|| {
-        create_collection_with_issuer();
+        create_closed_collection_with_selected_issuer();
         let record_id = build_record_id();
         let record_description = build_record_description();
         let record_files = vec![];
@@ -1297,7 +1351,7 @@ fn it_fails_adding_tokens_record_no_files() {
 #[test]
 fn it_fails_adding_tokens_record_duplicate_file() {
     new_test_ext().execute_with(|| {
-        create_collection_with_issuer();
+        create_closed_collection_with_selected_issuer();
         let record_id = build_record_id();
         let record_description = build_record_description();
         let file1 = TokensRecordFile {
@@ -1321,7 +1375,7 @@ fn it_fails_adding_tokens_record_duplicate_file() {
 #[test]
 fn it_fails_adding_tokens_record_description_too_large() {
     new_test_ext().execute_with(|| {
-        create_collection_with_issuer();
+        create_closed_collection_with_selected_issuer();
         let record_id = build_record_id();
         let record_description = vec![0; 256];
         let record_files = build_record_files(1);
@@ -1333,7 +1387,7 @@ fn it_fails_adding_tokens_record_description_too_large() {
 #[test]
 fn it_fails_adding_tokens_record_file_name_too_large() {
     new_test_ext().execute_with(|| {
-        create_collection_with_issuer();
+        create_closed_collection_with_selected_issuer();
         let record_id = build_record_id();
         let record_description = build_record_description();
         let file1 = TokensRecordFile {
@@ -1351,7 +1405,7 @@ fn it_fails_adding_tokens_record_file_name_too_large() {
 #[test]
 fn it_fails_adding_tokens_record_file_content_type_too_large() {
     new_test_ext().execute_with(|| {
-        create_collection_with_issuer();
+        create_closed_collection_with_selected_issuer();
         let record_id = build_record_id();
         let record_description = build_record_description();
         let file1 = TokensRecordFile {
@@ -1369,7 +1423,7 @@ fn it_fails_adding_tokens_record_file_content_type_too_large() {
 #[test]
 fn it_fails_adding_tokens_record_too_many_files() {
     new_test_ext().execute_with(|| {
-        create_collection_with_issuer();
+        create_closed_collection_with_selected_issuer();
         let record_id = build_record_id();
         let record_description = build_record_description();
         let record_files = build_record_files(256);
