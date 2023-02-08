@@ -60,7 +60,6 @@ pub const LOC_REQUESTER: RequesterOf<Test> = RequesterOf::<Test>::Account(LOC_RE
 pub const LOGION_IDENTITY_LOC_ID: u32 = 4;
 pub const ISSUER_ID1: u64 = 5;
 pub const ISSUER_ID2: u64 = 6;
-pub const ISSUER_ID3: u64 = 7;
 
 pub struct LoAuthorityListMock;
 impl EnsureOrigin<RuntimeOrigin> for LoAuthorityListMock {
@@ -110,7 +109,6 @@ impl pallet_loc::Config for Test {
     type MaxTokensRecordDescriptionSize = MaxTokensRecordDescriptionSize;
     type MaxFileNameSize = MaxFileNameSize;
     type MaxFileContentTypeSize = MaxFileContentTypeSize;
-    type MaxIssuers = MaxIssuers;
     type MaxTokensRecordFiles = MaxTokensRecordFiles;
     type WeightInfo = ();
 }

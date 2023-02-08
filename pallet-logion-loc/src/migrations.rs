@@ -91,7 +91,6 @@ pub mod v8 {
                             collection_max_size: loc.collection_max_size,
                             collection_can_upload: loc.collection_can_upload,
                             seal: Option::None,
-                            issuers: bounded_vec![],
                         })
                     })
                 }

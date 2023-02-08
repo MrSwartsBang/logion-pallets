@@ -49,8 +49,7 @@ pub trait WeightInfo {
     fn make_void_and_replace() -> Weight;
     fn create_collection_loc() -> Weight;
     fn add_collection_item() -> Weight;
-    fn add_issuer() -> Weight;
-    fn remove_issuer() -> Weight;
+    fn set_issuer_selection() -> Weight;
     fn add_tokens_record() -> Weight;
 }
 
@@ -117,12 +116,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().reads(3))
             .saturating_add(T::DbWeight::get().writes(2))
     }
-    fn add_issuer() -> Weight {
-        Weight::from_ref_time(11_971_000)
-            .saturating_add(T::DbWeight::get().reads(1))
-            .saturating_add(T::DbWeight::get().writes(1))
-    }
-    fn remove_issuer() -> Weight {
+    fn set_issuer_selection() -> Weight {
         Weight::from_ref_time(11_971_000)
             .saturating_add(T::DbWeight::get().reads(1))
             .saturating_add(T::DbWeight::get().writes(1))
@@ -196,12 +190,7 @@ impl WeightInfo for () {
       .saturating_add(RocksDbWeight::get().reads(3))
       .saturating_add(RocksDbWeight::get().writes(2))
   }
-  fn add_issuer() -> Weight {
-    Weight::from_ref_time(11_971_000)
-      .saturating_add(RocksDbWeight::get().reads(1))
-      .saturating_add(RocksDbWeight::get().writes(1))
-  }
-  fn remove_issuer() -> Weight {
+  fn set_issuer_selection() -> Weight {
     Weight::from_ref_time(11_971_000)
       .saturating_add(RocksDbWeight::get().reads(1))
       .saturating_add(RocksDbWeight::get().writes(1))
