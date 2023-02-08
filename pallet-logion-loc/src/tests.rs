@@ -188,32 +188,6 @@ fn it_fails_adding_metadata_when_closed() {
     });
 }
 
-#[test]
-fn it_adds_metadata_on_polkadot_transaction_loc_when_submitter_is_not_owner_or_requester() {
-    new_test_ext().execute_with(|| {
-        assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
-        let metadata = MetadataItem {
-            name: vec![1, 2, 3],
-            value: vec![4, 5, 6],
-            submitter: LOC_OWNER2,
-        };
-        assert_ok!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.clone()));
-    });
-}
-
-#[test]
-fn it_adds_metadata_on_logion_identity_loc_for_when_submitter_is_not_owner_or_requester() {
-    new_test_ext().execute_with(|| {
-        assert_ok!(LogionLoc::create_logion_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
-        let metadata = MetadataItem {
-            name: vec![1, 2, 3],
-            value: vec![4, 5, 6],
-            submitter: LOC_OWNER2,
-        };
-        assert_ok!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.clone()));
-    });
-}
-
 fn create_closed_loc() {
     assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
     assert_ok!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
@@ -272,32 +246,6 @@ fn it_fails_adding_file_when_closed() {
             submitter: LOC_OWNER1,
         };
         assert_err!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()), Error::<Test>::CannotMutate);
-    });
-}
-
-#[test]
-fn it_adds_file_on_polkadot_transaction_loc_when_submitter_is_not_owner_or_requester() {
-    new_test_ext().execute_with(|| {
-        assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
-        let file = File {
-            hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
-            nature: "test-file-nature".as_bytes().to_vec(),
-            submitter: LOC_OWNER2,
-        };
-        assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()));
-    });
-}
-
-#[test]
-fn it_adds_file_on_logion_identity_loc_when_submitter_is_not_owner_or_requester() {
-    new_test_ext().execute_with(|| {
-        assert_ok!(LogionLoc::create_logion_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
-        let file = File {
-            hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
-            nature: "test-file-nature".as_bytes().to_vec(),
-            submitter: LOC_OWNER2,
-        };
-        assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()));
     });
 }
 
@@ -1429,5 +1377,105 @@ fn it_fails_adding_tokens_record_too_many_files() {
         let record_files = build_record_files(256);
 
         assert_err!(LogionLoc::add_tokens_record(RuntimeOrigin::signed(ISSUER_ID1), LOC_ID, record_id, record_description, record_files), Error::<Test>::TokensRecordTooMuchData);
+    });
+}
+
+#[test]
+fn it_adds_file_on_logion_identity_loc_when_submitter_is_issuer() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(LogionLoc::create_logion_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
+        nominated_and_select_issuer(LOC_ID);
+        let file = File {
+            hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
+            nature: "test-file-nature".as_bytes().to_vec(),
+            submitter: ISSUER_ID1,
+        };
+        assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()));
+    });
+}
+
+fn nominated_and_select_issuer(loc_id: u32) {
+    nominate_issuer(ISSUER_ID1, ISSUER1_IDENTITY_LOC_ID);
+    assert_ok!(LogionLoc::set_issuer_selection(RuntimeOrigin::signed(LOC_OWNER1), loc_id, ISSUER_ID1, true));
+}
+
+#[test]
+fn it_adds_file_on_polkadot_transaction_loc_when_submitter_is_issuer() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
+        nominated_and_select_issuer(LOC_ID);
+        let file = File {
+            hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
+            nature: "test-file-nature".as_bytes().to_vec(),
+            submitter: ISSUER_ID1,
+        };
+        assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()));
+    });
+}
+
+#[test]
+fn it_fails_adding_file_on_polkadot_transaction_loc_cannot_submit() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
+        let file = File {
+            hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
+            nature: "test-file-nature".as_bytes().to_vec(),
+            submitter: LOC_OWNER2,
+        };
+        assert_err!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()), Error::<Test>::CannotSubmit);
+    });
+}
+
+#[test]
+fn it_adds_metadata_on_logion_identity_loc_for_when_submitter_is_issuer() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(LogionLoc::create_logion_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
+        nominated_and_select_issuer(LOC_ID);
+        let metadata = MetadataItem {
+            name: vec![1, 2, 3],
+            value: vec![4, 5, 6],
+            submitter: ISSUER_ID1,
+        };
+        assert_ok!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.clone()));
+    });
+}
+
+#[test]
+fn it_fails_adding_metadata_on_logion_identity_loc_cannot_submit() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(LogionLoc::create_logion_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
+        let metadata = MetadataItem {
+            name: vec![1, 2, 3],
+            value: vec![4, 5, 6],
+            submitter: LOC_OWNER2,
+        };
+        assert_err!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.clone()), Error::<Test>::CannotSubmit);
+    });
+}
+
+#[test]
+fn it_adds_metadata_on_polkadot_transaction_loc_when_submitter_is_issuer() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
+        nominated_and_select_issuer(LOC_ID);
+        let metadata = MetadataItem {
+            name: vec![1, 2, 3],
+            value: vec![4, 5, 6],
+            submitter: ISSUER_ID1,
+        };
+        assert_ok!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.clone()));
+    });
+}
+
+#[test]
+fn it_fails_adding_metadata_on_polkadot_transaction_loc_cannot_submit() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
+        let metadata = MetadataItem {
+            name: vec![1, 2, 3],
+            value: vec![4, 5, 6],
+            submitter: LOC_OWNER2,
+        };
+        assert_err!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.clone()), Error::<Test>::CannotSubmit);
     });
 }

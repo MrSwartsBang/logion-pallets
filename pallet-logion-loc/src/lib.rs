@@ -417,6 +417,8 @@ pub mod pallet {
         AlreadyNominated,
         /// Issuer is not nominated by the guardian
         NotNominated,
+        /// The submitter of added item cannot contribute to this LOC
+        CannotSubmit,
     }
 
     #[pallet::hooks]
@@ -614,6 +616,8 @@ pub mod pallet {
                     Err(Error::<T>::CannotMutate)?
                 } else if loc.void_info.is_some() {
                     Err(Error::<T>::CannotMutateVoid)?
+                } else if !Self::can_submit(&loc_id, &loc, &item.submitter) {
+                    Err(Error::<T>::CannotSubmit)?
                 } else {
                     if loc.metadata.iter().find(|metadata_item| metadata_item.name == item.name).is_some() {
                         Err(Error::<T>::DuplicateLocMetadata)?
@@ -651,6 +655,8 @@ pub mod pallet {
                     Err(Error::<T>::CannotMutate)?
                 } else if loc.void_info.is_some() {
                     Err(Error::<T>::CannotMutateVoid)?
+                } else if !Self::can_submit(&loc_id, &loc, &file.submitter) {
+                    Err(Error::<T>::CannotSubmit)?
                 } else {
                     if loc.files.iter().find(|item| item.hash == file.hash).is_some() {
                         Err(Error::<T>::DuplicateLocFile)?
@@ -1268,16 +1274,21 @@ pub mod pallet {
             Ok(().into())
         }
 
-        fn can_add_record(who: &T::AccountId, loc_id: &T::LocId, collection_loc: &LegalOfficerCaseOf<T>) -> bool {
-            let verified_issuer = Self::verified_issuers_by_loc(loc_id, who);
+        fn can_add_record(adder: &T::AccountId, loc_id: &T::LocId, collection_loc: &LegalOfficerCaseOf<T>) -> bool {
             collection_loc.loc_type == LocType::Collection
                 && (
-                    match &collection_loc.requester { Requester::Account(requester) => requester == who, _ => false }
-                    || *who == collection_loc.owner
-                    || verified_issuer.is_some()
+                    match &collection_loc.requester { Account(requester) => requester == adder, _ => false }
+                    || *adder == collection_loc.owner
+                    || Self::verified_issuers_by_loc(loc_id, adder).is_some()
                 )
                 && collection_loc.closed
                 && collection_loc.void_info.is_none()
+        }
+
+        fn can_submit(loc_id: &T::LocId, loc: &LegalOfficerCaseOf<T>, submitter: &T::AccountId) -> bool {
+            *submitter == loc.owner
+                || match &loc.requester { Account(requester_account) => *submitter == *requester_account, _ => false }
+                || Self::verified_issuers_by_loc(loc_id, submitter).is_some()
         }
     }
 }
