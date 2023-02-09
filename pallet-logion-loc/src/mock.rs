@@ -58,6 +58,8 @@ pub const LOC_OWNER2: u64 = 2;
 pub const LOC_REQUESTER_ID: u64 = 3;
 pub const LOC_REQUESTER: RequesterOf<Test> = RequesterOf::<Test>::Account(LOC_REQUESTER_ID);
 pub const LOGION_IDENTITY_LOC_ID: u32 = 4;
+pub const ISSUER_ID1: u64 = 5;
+pub const ISSUER_ID2: u64 = 6;
 
 pub struct LoAuthorityListMock;
 impl EnsureOrigin<RuntimeOrigin> for LoAuthorityListMock {
@@ -83,6 +85,11 @@ parameter_types! {
     pub const MaxCollectionItemDescriptionSize: usize = 4096;
     pub const MaxCollectionItemTokenIdSize: usize = 255;
     pub const MaxCollectionItemTokenTypeSize: usize = 255;
+    pub const MaxTokensRecordDescriptionSize: u32 = 255;
+    pub const MaxFileNameSize: u32 = 255;
+    pub const MaxFileContentTypeSize: u32 = 255;
+    pub const MaxIssuers: u32 = 2;
+    pub const MaxTokensRecordFiles: u32 = 10;
 }
 
 impl pallet_loc::Config for Test {
@@ -98,6 +105,11 @@ impl pallet_loc::Config for Test {
     type MaxCollectionItemDescriptionSize = MaxCollectionItemDescriptionSize;
     type MaxCollectionItemTokenIdSize = MaxCollectionItemTokenIdSize;
     type MaxCollectionItemTokenTypeSize = MaxCollectionItemTokenTypeSize;
+    type TokensRecordId = H256;
+    type MaxTokensRecordDescriptionSize = MaxTokensRecordDescriptionSize;
+    type MaxFileNameSize = MaxFileNameSize;
+    type MaxFileContentTypeSize = MaxFileContentTypeSize;
+    type MaxTokensRecordFiles = MaxTokensRecordFiles;
     type WeightInfo = ();
 }
 
