@@ -15,7 +15,6 @@ mod benchmarking;
 
 use frame_support::{
     BoundedVec,
-    bounded_vec,
     codec::{Decode, Encode},
     dispatch::Vec,
 };
@@ -904,7 +903,7 @@ pub mod pallet {
 
                     let bounded_description: BoundedVec<u8, T::MaxTokensRecordDescriptionSize> =
                         description.clone().try_into().map_err(|_| Error::<T>::TokensRecordTooMuchData)?;
-                    let mut bounded_files: BoundedVec<TokensRecordFileOf<T>, T::MaxTokensRecordFiles> = bounded_vec![];
+                    let mut bounded_files: BoundedVec<TokensRecordFileOf<T>, T::MaxTokensRecordFiles> = BoundedVec::with_bounded_capacity(files.len());
                     for unbounded_file in files.iter() {
                         let bounded_name =
                             unbounded_file.name.clone().try_into().map_err(|_| Error::<T>::TokensRecordTooMuchData)?;
