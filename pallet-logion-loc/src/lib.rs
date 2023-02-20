@@ -1231,15 +1231,11 @@ pub mod pallet {
                         Err(Error::<T>::CannotUpload)?
                     }
                     if collection_loc.collection_can_upload {
-                        if item_files.len() == 0 {
-                            Err(Error::<T>::MustUpload)?
-                        } else {
-                            let files_hashes: Vec<<T as Config>::Hash> = item_files.iter()
-                                .map(|file| file.hash)
-                                .collect();
-                            if !Self::has_unique_elements(&files_hashes) {
-                                Err(Error::<T>::DuplicateFile)?
-                            }
+                        let files_hashes: Vec<<T as Config>::Hash> = item_files.iter()
+                            .map(|file| file.hash)
+                            .collect();
+                        if !Self::has_unique_elements(&files_hashes) {
+                            Err(Error::<T>::DuplicateFile)?
                         }
                     }
 

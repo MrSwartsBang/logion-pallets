@@ -715,14 +715,14 @@ fn it_fails_adding_item_if_files_attached_but_upload_not_enabled() {
 }
 
 #[test]
-fn it_fails_adding_item_if_no_files_attached_but_upload_enabled() {
+fn it_adds_item_if_no_files_attached_and_upload_enabled() {
     new_test_ext().execute_with(|| {
         assert_ok!(LogionLoc::create_collection_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID, Option::None, Option::Some(1), true));
         assert_ok!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
 
         let collection_item_id = BlakeTwo256::hash_of(&"item-id".as_bytes().to_vec());
         let collection_item_description = "item-description".as_bytes().to_vec();
-        assert_err!(LogionLoc::add_collection_item(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, collection_item_id, collection_item_description, vec![], Option::None, false), Error::<Test>::MustUpload);
+        assert_ok!(LogionLoc::add_collection_item(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, collection_item_id, collection_item_description, vec![], Option::None, false));
     });
 }
 
