@@ -111,6 +111,10 @@ impl pallet_loc::Config for Test {
     type MaxFileContentTypeSize = MaxFileContentTypeSize;
     type MaxTokensRecordFiles = MaxTokensRecordFiles;
     type WeightInfo = ();
+    type Currency = ();
+    type FileStorageFeeDestination = ();
+    type FileStorageByteFee = ();
+    type FileStorageEntryFee = ();
 }
 
 // Build genesis storage according to the mock runtime.
