@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "logion-shared",
+    "pallet-block-reward",
     "pallet-lo-authority-list",
     "pallet-logion-loc",
     "pallet-logion-vault",
