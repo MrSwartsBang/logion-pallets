@@ -950,10 +950,10 @@ pub mod pallet {
                         _ => collection_loc.owner
                     };
 
-                    let sizes: Vec<u32> = files.iter()
+                    let tot_size = files.iter()
                         .map(|file| file.size)
-                        .collect();
-                    Self::apply_file_storage_fee(fee_payer, sizes)?;
+                        .fold(0, |tot, current| tot + current);
+                    Self::apply_file_storage_fee(fee_payer, files.len(), tot_size)?;
                     let record = TokensRecord {
                         description: bounded_description,
                         files: bounded_files,
@@ -1289,10 +1289,10 @@ pub mod pallet {
                             }
                         }
                     }
-                    let sizes: Vec<u32> = item_files.iter()
+                    let tot_size = item_files.iter()
                         .map(|file| file.size)
-                        .collect();
-                    Self::apply_file_storage_fee(who, sizes)?;
+                        .fold(0, |tot, current| tot + current);
+                    Self::apply_file_storage_fee(who, item_files.len(), tot_size)?;
                     let item = CollectionItem {
                         description: item_description.clone(),
                         files: item_files.clone(),
@@ -1327,14 +1327,12 @@ pub mod pallet {
                 || Self::verified_issuers_by_loc(loc_id, submitter).is_some()
         }
 
-        fn apply_file_storage_fee(fee_payer: T::AccountId, sizes: Vec<u32>) -> DispatchResult {
+        fn apply_file_storage_fee(fee_payer: T::AccountId, num_of_entries: usize, tot_size: u32) -> DispatchResult {
             let byte_fee: BalanceOf<T> = T::FileStorageByteFee::get().into();
             let entry_fee: BalanceOf<T> = T::FileStorageEntryFee::get().into();
-            let tot_size: u32 = sizes.iter()
-                .fold(0, |tot, current| tot + current);
             let fee =
                 byte_fee.saturating_mul(tot_size.into())
-                    .saturating_add(entry_fee.saturating_mul((sizes.len() as u32).into()));
+                    .saturating_add(entry_fee.saturating_mul((num_of_entries as u32).into()));
             ensure!(T::Currency::can_slash(&fee_payer, fee), Error::<T>::InsufficientFunds);
             let (credit, _) = T::Currency::slash(&fee_payer, fee);
             T::FileStorageFeeDistributor::distribute(credit, T::FileStorageFeeDistributionKey::get());

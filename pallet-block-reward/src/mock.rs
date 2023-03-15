@@ -86,8 +86,8 @@ pub const STAKERS_ACCOUNT: AccountId = 4;
 
 // Type used as beneficiary payout handle
 pub struct RewardDistributorImpl();
-impl pallet_block_reward::RewardDistributor<NegativeImbalanceOf<Test>>
-    for RewardDistributorImpl
+impl RewardDistributor<NegativeImbalanceOf<Test>, Balance>
+for RewardDistributorImpl
 {
     fn payout_reserve(reward: NegativeImbalanceOf<Test>) {
         Balances::resolve_creating(&RESERVE_ACCOUNT, reward);
