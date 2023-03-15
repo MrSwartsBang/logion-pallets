@@ -3,6 +3,7 @@
 This repo groups all logion pallets and their shared library in a single place:
 
 - [logion-shared](https://github.com/logion-network/logion-pallets/blob/main/logion-shared): a library of components shared by the pallets
+- [pallet-block-reward](./pallet-block-reward): Implement inflation and distribute it to stakers, collators and reserve.
 - [pallet-lo-authority-list](https://github.com/logion-network/logion-pallets/blob/main/pallet-lo-authority-list): logion Legal Officers authority list management
 - [pallet-logion-loc](https://github.com/logion-network/logion-pallets/blob/main/pallet-logion-loc): Legal Officer Cases implementation
 - [pallet-logion-vault](https://github.com/logion-network/logion-pallets/blob/main/pallet-logion-vault): logion Vault implementation (using FRAME's multisig pallet)

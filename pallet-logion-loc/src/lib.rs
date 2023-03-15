@@ -196,8 +196,8 @@ pub mod pallet {
         pallet_prelude::*,
     };
     use codec::HasCompact;
-    use frame_support::traits::{OnUnbalanced, Currency};
-    use logion_shared::{LocQuery, LocValidity, IsLegalOfficer};
+    use frame_support::traits::{Currency};
+    use logion_shared::{LocQuery, LocValidity, IsLegalOfficer, RewardDistributor, DistributionKey};
     use super::*;
     pub use crate::weights::WeightInfo;
 
@@ -260,14 +260,17 @@ pub mod pallet {
         /// The currency trait.
         type Currency: Currency<Self::AccountId>;
 
-        /// Handler for the unbalanced decrease when fees are burned.
-        type FileStorageFeeDestination: OnUnbalanced<NegativeImbalanceOf<Self>>;
-
         /// The variable part of the Fee to pay to store a file (per byte)
         type FileStorageByteFee: Get<u32>;
 
         /// The constant part of the Fee to pay to store a file.
         type FileStorageEntryFee: Get<u32>;
+
+        /// Used to payout file storage fees
+        type FileStorageFeeDistributor: RewardDistributor<NegativeImbalanceOf<Self>, BalanceOf<Self>>;
+
+        /// Used to payout rewards
+        type FileStorageFeeDistributionKey: Get<DistributionKey>;
     }
 
     #[pallet::pallet]
@@ -443,7 +446,11 @@ pub mod pallet {
     }
 
     #[pallet::hooks]
-    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+        fn integrity_test() {
+            assert!(T::FileStorageFeeDistributionKey::get().is_valid());
+        }
+    }
 
     #[derive(Encode, Decode, Eq, PartialEq, Debug, TypeInfo)]
     pub enum StorageVersion {
@@ -1330,7 +1337,7 @@ pub mod pallet {
                     .saturating_add(entry_fee.saturating_mul((sizes.len() as u32).into()));
             ensure!(T::Currency::can_slash(&fee_payer, fee), Error::<T>::InsufficientFunds);
             let (credit, _) = T::Currency::slash(&fee_payer, fee);
-            T::FileStorageFeeDestination::on_unbalanced(credit);
+            T::FileStorageFeeDistributor::distribute(credit, T::FileStorageFeeDistributionKey::get());
             Ok(())
         }
     }
