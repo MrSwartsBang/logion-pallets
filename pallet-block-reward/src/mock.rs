@@ -1,4 +1,4 @@
-use crate::{self as pallet_block_reward, NegativeImbalanceOf, DistributionKey};
+use crate::{self as pallet_block_reward, NegativeImbalanceOf};
 
 use frame_support::{
     construct_runtime, parameter_types, traits::Currency,
@@ -9,6 +9,7 @@ use sp_runtime::{
     testing::Header,
     traits::{BlakeTwo256, IdentityLookup}, Percent,
 };
+use logion_shared::{DistributionKey, RewardDistributor};
 
 pub type AccountId = u64;
 pub type BlockNumber = u64;
@@ -84,9 +85,9 @@ pub const COLLATORS_ACCOUNT: AccountId = 3;
 pub const STAKERS_ACCOUNT: AccountId = 4;
 
 // Type used as beneficiary payout handle
-pub struct RewardDistributor();
-impl pallet_block_reward::RewardDistributor<NegativeImbalanceOf<Test>>
-    for RewardDistributor
+pub struct RewardDistributorImpl();
+impl RewardDistributor<NegativeImbalanceOf<Test>, Balance>
+for RewardDistributorImpl
 {
     fn payout_reserve(reward: NegativeImbalanceOf<Test>) {
         Balances::resolve_creating(&RESERVE_ACCOUNT, reward);
@@ -115,7 +116,7 @@ parameter_types! {
 impl pallet_block_reward::Config for Test {
     type Currency = Balances;
     type RewardAmount = RewardAmount;
-    type RewardDistributor = RewardDistributor;
+    type RewardDistributor = RewardDistributorImpl;
     type DistributionKey = RewardDistributionKey;
 }
 

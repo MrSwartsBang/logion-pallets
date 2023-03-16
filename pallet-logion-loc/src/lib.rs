@@ -18,9 +18,11 @@ use frame_support::{
     codec::{Decode, Encode},
     dispatch::Vec,
 };
+use frame_support::traits::Currency;
 use scale_info::TypeInfo;
 use logion_shared::LegalOfficerCaseSummary;
 use crate::Requester::Account;
+use frame_support::sp_runtime::Saturating;
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
 pub enum LocType {
@@ -178,6 +180,11 @@ pub type UnboundedTokensRecordFileOf<T> = TokensRecordFile<
     Vec<u8>,
 >;
 
+pub type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+
+pub type NegativeImbalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId, >>::NegativeImbalance;
+
+
 pub mod weights;
 
 #[frame_support::pallet]
@@ -189,7 +196,8 @@ pub mod pallet {
         pallet_prelude::*,
     };
     use codec::HasCompact;
-    use logion_shared::{LocQuery, LocValidity, IsLegalOfficer};
+    use frame_support::traits::{Currency};
+    use logion_shared::{LocQuery, LocValidity, IsLegalOfficer, RewardDistributor, DistributionKey};
     use super::*;
     pub use crate::weights::WeightInfo;
 
@@ -248,6 +256,21 @@ pub mod pallet {
 
         /// The maximum number of files per token record
         type MaxTokensRecordFiles: Get<u32>;
+
+        /// The currency trait.
+        type Currency: Currency<Self::AccountId>;
+
+        /// The variable part of the Fee to pay to store a file (per byte)
+        type FileStorageByteFee: Get<u32>;
+
+        /// The constant part of the Fee to pay to store a file.
+        type FileStorageEntryFee: Get<u32>;
+
+        /// Used to payout file storage fees
+        type FileStorageFeeDistributor: RewardDistributor<NegativeImbalanceOf<Self>, BalanceOf<Self>>;
+
+        /// Used to payout rewards
+        type FileStorageFeeDistributionKey: Get<DistributionKey>;
     }
 
     #[pallet::pallet]
@@ -418,10 +441,16 @@ pub mod pallet {
         NotNominated,
         /// The submitter of added item cannot contribute to this LOC
         CannotSubmit,
+        /// The requester has not enough funds to import file
+        InsufficientFunds,
     }
 
     #[pallet::hooks]
-    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+        fn integrity_test() {
+            assert!(T::FileStorageFeeDistributionKey::get().is_valid());
+        }
+    }
 
     #[derive(Encode, Decode, Eq, PartialEq, Debug, TypeInfo)]
     pub enum StorageVersion {
@@ -916,6 +945,15 @@ pub mod pallet {
                             size: unbounded_file.size,
                         }).map_err(|_| Error::<T>::TokensRecordTooMuchData)?;
                     }
+                    let fee_payer = match collection_loc.requester {
+                        Account(requester_account) => requester_account,
+                        _ => collection_loc.owner
+                    };
+
+                    let tot_size = files.iter()
+                        .map(|file| file.size)
+                        .fold(0, |tot, current| tot + current);
+                    Self::apply_file_storage_fee(fee_payer, files.len(), tot_size)?;
                     let record = TokensRecord {
                         description: bounded_description,
                         files: bounded_files,
@@ -1251,7 +1289,10 @@ pub mod pallet {
                             }
                         }
                     }
-
+                    let tot_size = item_files.iter()
+                        .map(|file| file.size)
+                        .fold(0, |tot, current| tot + current);
+                    Self::apply_file_storage_fee(who, item_files.len(), tot_size)?;
                     let item = CollectionItem {
                         description: item_description.clone(),
                         files: item_files.clone(),
@@ -1284,6 +1325,18 @@ pub mod pallet {
             *submitter == loc.owner
                 || match &loc.requester { Account(requester_account) => *submitter == *requester_account, _ => false }
                 || Self::verified_issuers_by_loc(loc_id, submitter).is_some()
+        }
+
+        fn apply_file_storage_fee(fee_payer: T::AccountId, num_of_entries: usize, tot_size: u32) -> DispatchResult {
+            let byte_fee: BalanceOf<T> = T::FileStorageByteFee::get().into();
+            let entry_fee: BalanceOf<T> = T::FileStorageEntryFee::get().into();
+            let fee =
+                byte_fee.saturating_mul(tot_size.into())
+                    .saturating_add(entry_fee.saturating_mul((num_of_entries as u32).into()));
+            ensure!(T::Currency::can_slash(&fee_payer, fee), Error::<T>::InsufficientFunds);
+            let (credit, _) = T::Currency::slash(&fee_payer, fee);
+            T::FileStorageFeeDistributor::distribute(credit, T::FileStorageFeeDistributionKey::get());
+            Ok(())
         }
     }
 }
