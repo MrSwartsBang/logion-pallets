@@ -1,14 +1,14 @@
-use crate::{self as pallet_loc, RequesterOf};
-use logion_shared::IsLegalOfficer;
+use crate::{self as pallet_loc, NegativeImbalanceOf, RequesterOf};
+use logion_shared::{DistributionKey, IsLegalOfficer, RewardDistributor};
 use sp_core::hash::H256;
 use frame_support::{parameter_types, traits::EnsureOrigin};
-use sp_runtime::{
-    traits::{BlakeTwo256, IdentityLookup}, testing::Header,
-};
+use sp_runtime::{traits::{BlakeTwo256, IdentityLookup}, testing::Header, Percent};
 use frame_system as system;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
+
+pub type Balance = u32;
 
 frame_support::construct_runtime!(
     pub enum Test where
@@ -92,6 +92,31 @@ parameter_types! {
     pub const MaxTokensRecordFiles: u32 = 10;
 }
 
+// Type used as beneficiary payout handle
+pub struct RewardDistributorImpl();
+impl RewardDistributor<NegativeImbalanceOf<Test>, Balance>
+for RewardDistributorImpl
+{
+    fn payout_reserve(_reward: NegativeImbalanceOf<Test>) {
+    }
+
+    fn payout_collators(_reward: NegativeImbalanceOf<Test>) {
+    }
+
+    fn payout_stakers(_reward: NegativeImbalanceOf<Test>) {
+    }
+}
+
+parameter_types! {
+    pub const FileStorageByteFee: u32 = 10u32;
+    pub const FileStorageEntryFee: u32 = 100u32;
+    pub const RewardDistributionKey: DistributionKey = DistributionKey {
+        stakers_percent: Percent::from_percent(50),
+        collators_percent: Percent::from_percent(30),
+        reserve_percent: Percent::from_percent(20),
+    };
+}
+
 impl pallet_loc::Config for Test {
     type LocId = u32;
     type RuntimeEvent = RuntimeEvent;
@@ -111,6 +136,11 @@ impl pallet_loc::Config for Test {
     type MaxFileContentTypeSize = MaxFileContentTypeSize;
     type MaxTokensRecordFiles = MaxTokensRecordFiles;
     type WeightInfo = ();
+    type Currency = ();
+    type FileStorageByteFee = FileStorageByteFee;
+    type FileStorageEntryFee = FileStorageEntryFee;
+    type FileStorageFeeDistributor = RewardDistributorImpl;
+    type FileStorageFeeDistributionKey = RewardDistributionKey;
 }
 
 // Build genesis storage according to the mock runtime.

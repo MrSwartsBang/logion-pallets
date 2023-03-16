@@ -3,11 +3,16 @@
 use frame_support::{
     dispatch::{GetDispatchInfo, Vec, Weight},
     Parameter,
-    traits::{EnsureOrigin, UnfilteredDispatchable},
+    traits::{EnsureOrigin, UnfilteredDispatchable, Imbalance},
 };
 use frame_support::dispatch::DispatchResultWithPostInfo;
+use frame_support::sp_runtime::Percent;
+use frame_support::traits::tokens::Balance;
 use frame_system::{ensure_signed, RawOrigin};
 use sp_std::boxed::Box;
+
+#[cfg(test)]
+mod tests;
 
 pub trait CreateRecoveryCallFactory<Origin, AccountId, BlockNumber> {
     type Call: Parameter + UnfilteredDispatchable<RuntimeOrigin = Origin> + GetDispatchInfo;
@@ -80,4 +85,52 @@ pub trait LegalOfficerCreation<AccountId> {
         guest_legal_officer_id: AccountId,
         host_legal_officer_id: AccountId,
     ) -> DispatchResultWithPostInfo;
+}
+
+#[derive(Debug, PartialEq)]
+pub struct DistributionKey {
+    pub reserve_percent: Percent,
+    pub stakers_percent: Percent,
+    pub collators_percent: Percent,
+}
+
+impl DistributionKey {
+
+    pub fn is_valid(&self) -> bool {
+        let mut should_become_zero = Self::into_signed(Percent::one());
+
+        should_become_zero = should_become_zero - Self::into_signed(self.reserve_percent);
+        should_become_zero = should_become_zero - Self::into_signed(self.stakers_percent);
+        should_become_zero = should_become_zero - Self::into_signed(self.collators_percent);
+
+        should_become_zero == 0
+    }
+
+    fn into_signed(percent: Percent) -> i16 {
+        <u8 as Into<i16>>::into(percent.deconstruct())
+    }
+}
+
+pub trait RewardDistributor<I: Imbalance<B>, B: Balance> {
+
+    fn payout_collators(reward: I);
+
+    fn payout_reserve(reward: I);
+
+    fn payout_stakers(reward: I);
+
+    fn distribute(amount: I, distribution_key: DistributionKey) {
+        let amount_balance = amount.peek();
+
+        let stakers_part = distribution_key.stakers_percent * amount_balance;
+        let collators_part = distribution_key.collators_percent * amount_balance;
+
+        let (stakers_imbalance, remainder) = amount.split(stakers_part);
+        let (collators_imbalance, reserve_imbalance) = remainder.split(collators_part);
+
+        Self::payout_stakers(stakers_imbalance);
+        Self::payout_reserve(reserve_imbalance);
+        Self::payout_collators(collators_imbalance);
+    }
+
 }

@@ -3,9 +3,8 @@
 pub use pallet::*;
 
 use frame_support::pallet_prelude::*;
-use frame_support::traits::{Currency, Get, Imbalance};
+use frame_support::traits::{Currency, Get};
 use frame_system::pallet_prelude::*;
-use sp_runtime::Percent;
 use sp_std::vec;
 
 #[cfg(any(feature = "runtime-benchmarks"))]
@@ -17,7 +16,7 @@ mod tests;
 
 #[frame_support::pallet]
 pub mod pallet {
-
+    use logion_shared::{DistributionKey, RewardDistributor};
     use super::*;
 
     #[pallet::pallet]
@@ -36,7 +35,7 @@ pub mod pallet {
         type Currency: Currency<Self::AccountId>;
 
         /// Used to payout rewards
-        type RewardDistributor: RewardDistributor<NegativeImbalanceOf<Self>>;
+        type RewardDistributor: RewardDistributor<NegativeImbalanceOf<Self>, BalanceOf<Self>>;
 
         /// The amount of issuance for each block.
         #[pallet::constant]
@@ -62,51 +61,8 @@ pub mod pallet {
     impl<T: Config> Pallet<T> {
 
         fn distribute(block_reward: NegativeImbalanceOf<T>) {
-            let block_reward_balance = block_reward.peek();
-            let distribution_key = T::DistributionKey::get();
 
-            let stakers_part = distribution_key.stakers_percent * block_reward_balance;
-            let collators_part = distribution_key.collators_percent * block_reward_balance;
-
-            let (stakers_imbalance, remainder) = block_reward.split(stakers_part);
-            let (collators_imbalance, reserve_imbalance) = remainder.split(collators_part);
-
-            T::RewardDistributor::payout_stakers(stakers_imbalance);
-            T::RewardDistributor::payout_reserve(reserve_imbalance);
-            T::RewardDistributor::payout_collators(collators_imbalance);
+            T::RewardDistributor::distribute(block_reward, T::DistributionKey::get());
         }
     }
-}
-
-#[derive(Debug, PartialEq)]
-pub struct DistributionKey {
-    pub reserve_percent: Percent,
-    pub stakers_percent: Percent,
-    pub collators_percent: Percent,
-}
-
-impl DistributionKey {
-
-    fn is_valid(&self) -> bool {
-        let mut should_become_zero = Self::into_signed(Percent::one());
-
-        should_become_zero = should_become_zero - Self::into_signed(self.reserve_percent);
-        should_become_zero = should_become_zero - Self::into_signed(self.stakers_percent);
-        should_become_zero = should_become_zero - Self::into_signed(self.collators_percent);
-
-        should_become_zero == 0
-    }
-
-    fn into_signed(percent: Percent) -> i16 {
-        <u8 as Into<i16>>::into(percent.deconstruct())
-    }
-}
-
-pub trait RewardDistributor<Imbalance> {
-
-    fn payout_collators(reward: Imbalance);
-
-    fn payout_reserve(reward: Imbalance);
-
-    fn payout_stakers(reward: Imbalance);
 }
