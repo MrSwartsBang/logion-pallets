@@ -15,6 +15,7 @@ const LOGION_CLASSIFICATION_LOC_ID: u32 = 2;
 const ADDITIONAL_TC_LOC_ID: u32 = 3;
 const ISSUER1_IDENTITY_LOC_ID: u32 = 4;
 const ISSUER2_IDENTITY_LOC_ID: u32 = 5;
+const FILE_SIZE: u32 = 789;
 
 #[test]
 fn it_creates_loc() {
@@ -201,6 +202,7 @@ fn it_adds_file_when_submitter_is_owner() {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file-nature".as_bytes().to_vec(),
             submitter: LOC_OWNER1,
+            size: FILE_SIZE,
         };
         assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()));
         let loc = LogionLoc::loc(LOC_ID).unwrap();
@@ -216,6 +218,7 @@ fn it_adds_file_when_submitter_is_requester() {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file-nature".as_bytes().to_vec(),
             submitter: LOC_REQUESTER_ID,
+            size: FILE_SIZE,
         };
         assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()));
         let loc = LogionLoc::loc(LOC_ID).unwrap();
@@ -231,6 +234,7 @@ fn it_fails_adding_file_for_unauthorized_caller() {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file-nature".as_bytes().to_vec(),
             submitter: LOC_OWNER1,
+            size: FILE_SIZE,
         };
         assert_err!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, file.clone()), Error::<Test>::Unauthorized);
     });
@@ -244,6 +248,7 @@ fn it_fails_adding_file_when_closed() {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file-nature".as_bytes().to_vec(),
             submitter: LOC_OWNER1,
+            size: FILE_SIZE,
         };
         assert_err!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()), Error::<Test>::CannotMutate);
     });
@@ -919,12 +924,14 @@ fn it_fails_adding_file_with_same_hash() {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file-nature".as_bytes().to_vec(),
             submitter: LOC_REQUESTER_ID,
+            size: FILE_SIZE,
         };
         assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file1.clone()));
         let file2 = File {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file2-nature".as_bytes().to_vec(),
             submitter: LOC_REQUESTER_ID,
+            size: FILE_SIZE,
         };
         assert_err!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file2.clone()), Error::<Test>::DuplicateLocFile);
     });
@@ -1389,6 +1396,7 @@ fn it_adds_file_on_logion_identity_loc_when_submitter_is_issuer() {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file-nature".as_bytes().to_vec(),
             submitter: ISSUER_ID1,
+            size: FILE_SIZE,
         };
         assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()));
     });
@@ -1408,6 +1416,7 @@ fn it_adds_file_on_polkadot_transaction_loc_when_submitter_is_issuer() {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file-nature".as_bytes().to_vec(),
             submitter: ISSUER_ID1,
+            size: FILE_SIZE,
         };
         assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()));
     });
@@ -1421,6 +1430,7 @@ fn it_fails_adding_file_on_polkadot_transaction_loc_cannot_submit() {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file-nature".as_bytes().to_vec(),
             submitter: LOC_OWNER2,
+            size: FILE_SIZE,
         };
         assert_err!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()), Error::<Test>::CannotSubmit);
     });

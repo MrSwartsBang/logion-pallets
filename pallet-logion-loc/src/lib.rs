@@ -55,6 +55,7 @@ pub struct File<Hash, AccountId> {
     hash: Hash,
     nature: Vec<u8>,
     submitter: AccountId,
+    size: u32,
 }
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
@@ -463,11 +464,12 @@ pub mod pallet {
         V7ItemToken,
         V8AddSeal,
         V9TermsAndConditions,
+        V10AddLocFileSize,
     }
 
     impl Default for StorageVersion {
         fn default() -> StorageVersion {
-            return StorageVersion::V8AddSeal;
+            return StorageVersion::V9TermsAndConditions;
         }
     }
 
@@ -689,6 +691,11 @@ pub mod pallet {
                     if loc.files.iter().find(|item| item.hash == file.hash).is_some() {
                         Err(Error::<T>::DuplicateLocFile)?
                     }
+                    let fee_payer = match loc.requester {
+                        Account(requester_account) => requester_account,
+                        _ => loc.owner
+                    };
+                    Self::apply_file_storage_fee(fee_payer, 1, file.size)?;
                     <LocMap<T>>::mutate(loc_id, |loc| {
                         let mutable_loc = loc.as_mut().unwrap();
                         mutable_loc.files.push(file);
