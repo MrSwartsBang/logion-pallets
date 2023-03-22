@@ -6,6 +6,79 @@ use frame_support::traits::OnRuntimeUpgrade;
 
 use crate::{Config, LegalOfficerCaseOf, pallet, PalletStorageVersion, pallet::StorageVersion};
 
+pub mod v10 {
+    use super::*;
+    use crate::*;
+
+    #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug)]
+    struct FileV9<Hash, AccountId> {
+        hash: Hash,
+        nature: Vec<u8>,
+        submitter: AccountId,
+    }
+
+    type FileV9Of<T> = FileV9<<T as pallet::Config>::Hash, <T as frame_system::Config>::AccountId>;
+
+    #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
+    pub struct LegalOfficerCaseV9<AccountId, Hash, LocId, BlockNumber> {
+        owner: AccountId,
+        requester: Requester<AccountId, LocId>,
+        metadata: Vec<MetadataItem<AccountId>>,
+        files: Vec<FileV9<Hash, AccountId>>,
+        closed: bool,
+        loc_type: LocType,
+        links: Vec<LocLink<LocId>>,
+        void_info: Option<LocVoidInfo<LocId>>,
+        replacer_of: Option<LocId>,
+        collection_last_block_submission: Option<BlockNumber>,
+        collection_max_size: Option<CollectionSize>,
+        collection_can_upload: bool,
+        seal: Option<Hash>,
+    }
+
+    type LegalOfficerCaseOfV9<T> = LegalOfficerCaseV9<<T as frame_system::Config>::AccountId, <T as pallet::Config>::Hash, <T as pallet::Config>::LocId, <T as frame_system::Config>::BlockNumber>;
+
+    pub struct AddSizeToLocFile<T>(sp_std::marker::PhantomData<T>);
+
+    impl<T: Config> OnRuntimeUpgrade for AddSizeToLocFile<T> {
+        fn on_runtime_upgrade() -> Weight {
+            super::do_storage_upgrade::<T, _>(
+                StorageVersion::V9TermsAndConditions,
+                StorageVersion::V10AddLocFileSize,
+                "AddSizeToLocFile",
+                || {
+                    LocMap::<T>::translate_values(|loc: LegalOfficerCaseOfV9<T>| {
+                        let files: Vec<File<<T as pallet::Config>::Hash, <T as frame_system::Config>::AccountId>> = loc.files
+                            .iter()
+                            .map(|file: &FileV9Of<T>| File {
+                                hash: file.hash,
+                                nature: file.nature.clone(),
+                                submitter: file.submitter.clone(),
+                                size: 0
+                            })
+                            .collect();
+                        Some(LegalOfficerCaseOf::<T> {
+                            owner: loc.owner,
+                            requester: loc.requester,
+                            metadata: loc.metadata,
+                            files,
+                            closed: loc.closed,
+                            loc_type: loc.loc_type,
+                            links: loc.links,
+                            void_info: loc.void_info,
+                            replacer_of: loc.replacer_of,
+                            collection_last_block_submission: loc.collection_last_block_submission,
+                            collection_max_size: loc.collection_max_size,
+                            collection_can_upload: loc.collection_can_upload,
+                            seal: loc.seal,
+                        })
+                    })
+                }
+            )
+        }
+    }
+}
+
 pub mod v9 {
     use super::*;
     use crate::{CollectionItemFile, CollectionItemsMap, CollectionItemOf, CollectionItemToken};
@@ -39,60 +112,6 @@ pub mod v9 {
                         };
                         Some(new_item)
                     });
-                }
-            )
-        }
-    }
-}
-
-pub mod v8 {
-    use super::*;
-    use crate::*;
-
-    #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-    pub struct LegalOfficerCaseV7<AccountId, Hash, LocId, BlockNumber> {
-        owner: AccountId,
-        requester: Requester<AccountId, LocId>,
-        metadata: Vec<MetadataItem<AccountId>>,
-        files: Vec<File<Hash, AccountId>>,
-        closed: bool,
-        loc_type: LocType,
-        links: Vec<LocLink<LocId>>,
-        void_info: Option<LocVoidInfo<LocId>>,
-        replacer_of: Option<LocId>,
-        collection_last_block_submission: Option<BlockNumber>,
-        collection_max_size: Option<CollectionSize>,
-        collection_can_upload: bool,
-    }
-
-    type LegalOfficerCaseOfV7<T> = LegalOfficerCaseV7<<T as frame_system::Config>::AccountId, <T as pallet::Config>::Hash, <T as pallet::Config>::LocId, <T as frame_system::Config>::BlockNumber>;
-
-    pub struct AddSealToLoc<T>(sp_std::marker::PhantomData<T>);
-    impl<T: Config> OnRuntimeUpgrade for AddSealToLoc<T> {
-
-        fn on_runtime_upgrade() -> Weight {
-            super::do_storage_upgrade::<T, _>(
-                StorageVersion::V7ItemToken,
-                StorageVersion::V8AddSeal,
-                "AddSealToLoc",
-                || {
-                    LocMap::<T>::translate_values(|loc: LegalOfficerCaseOfV7<T>| {
-                        Some(LegalOfficerCaseOf::<T> {
-                            owner: loc.owner,
-                            requester: loc.requester,
-                            metadata: loc.metadata,
-                            files: loc.files,
-                            closed: loc.closed,
-                            loc_type: loc.loc_type,
-                            links: loc.links,
-                            void_info: loc.void_info,
-                            replacer_of: loc.replacer_of,
-                            collection_last_block_submission: loc.collection_last_block_submission,
-                            collection_max_size: loc.collection_max_size,
-                            collection_can_upload: loc.collection_can_upload,
-                            seal: Option::None,
-                        })
-                    })
                 }
             )
         }

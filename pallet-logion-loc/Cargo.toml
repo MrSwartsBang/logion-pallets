@@ -28,6 +28,7 @@ serde = { version = "1.0.137", features = ["derive"] }
 sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.39" }
 sp-io = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.39" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.39" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.39" }
 
 [features]
 default = ['std']
@@ -39,6 +40,7 @@ std = [
 	'logion-shared/std',
 	'scale-info/std',
 	'sp-std/std',
+	'pallet-balances/std',
 ]
 runtime-benchmarks = [
 	'frame-benchmarking',
