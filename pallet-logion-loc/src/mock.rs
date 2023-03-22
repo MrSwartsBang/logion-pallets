@@ -1,22 +1,24 @@
 use crate::{self as pallet_loc, NegativeImbalanceOf, RequesterOf};
 use logion_shared::{DistributionKey, IsLegalOfficer, RewardDistributor};
 use sp_core::hash::H256;
-use frame_support::{parameter_types, traits::EnsureOrigin};
+use frame_support::{construct_runtime, parameter_types, traits::{EnsureOrigin, Currency}};
 use sp_runtime::{traits::{BlakeTwo256, IdentityLookup}, testing::Header, Percent};
 use frame_system as system;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 
-pub type Balance = u32;
+pub type AccountId = u64;
+pub type Balance = u128;
 
-frame_support::construct_runtime!(
-    pub enum Test where
+construct_runtime!(
+    pub struct Test where
         Block = Block,
         NodeBlock = Block,
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
         System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+        Balances: pallet_balances,
         LogionLoc: pallet_loc::{Pallet, Call, Storage, Event<T>},
     }
 );
@@ -37,20 +39,37 @@ impl system::Config for Test {
     type BlockNumber = u64;
     type Hash = H256;
     type Hashing = BlakeTwo256;
-    type AccountId = u64;
+    type AccountId = AccountId;
     type Lookup = IdentityLookup<Self::AccountId>;
     type Header = Header;
     type RuntimeEvent = RuntimeEvent;
     type BlockHashCount = BlockHashCount;
     type Version = ();
     type PalletInfo = PalletInfo;
-    type AccountData = ();
+    type AccountData = pallet_balances::AccountData<Balance>;
     type OnNewAccount = ();
     type OnKilledAccount = ();
     type SystemWeightInfo = ();
     type SS58Prefix = SS58Prefix;
     type OnSetCode = ();
     type MaxConsumers = frame_support::traits::ConstU32<16>;
+}
+
+parameter_types! {
+    pub const MaxLocks: u32 = 4;
+    pub const ExistentialDeposit: Balance = 2;
+}
+
+impl pallet_balances::Config for Test {
+    type MaxLocks = MaxLocks;
+    type MaxReserves = ();
+    type ReserveIdentifier = [u8; 8];
+    type Balance = Balance;
+    type RuntimeEvent = RuntimeEvent;
+    type DustRemoval = ();
+    type ExistentialDeposit = ExistentialDeposit;
+    type AccountStore = System;
+    type WeightInfo = ();
 }
 
 pub const LOC_OWNER1: u64 = 1;
@@ -92,18 +111,26 @@ parameter_types! {
     pub const MaxTokensRecordFiles: u32 = 10;
 }
 
+// Fake accounts used to simulate reward beneficiaries balances
+pub const RESERVE_ACCOUNT: AccountId = 20;
+pub const COLLATORS_ACCOUNT: AccountId = 21;
+pub const STAKERS_ACCOUNT: AccountId = 22;
+
 // Type used as beneficiary payout handle
 pub struct RewardDistributorImpl();
 impl RewardDistributor<NegativeImbalanceOf<Test>, Balance>
 for RewardDistributorImpl
 {
-    fn payout_reserve(_reward: NegativeImbalanceOf<Test>) {
+    fn payout_reserve(reward: NegativeImbalanceOf<Test>) {
+        Balances::resolve_creating(&RESERVE_ACCOUNT, reward);
     }
 
-    fn payout_collators(_reward: NegativeImbalanceOf<Test>) {
+    fn payout_collators(reward: NegativeImbalanceOf<Test>) {
+        Balances::resolve_creating(&COLLATORS_ACCOUNT, reward);
     }
 
-    fn payout_stakers(_reward: NegativeImbalanceOf<Test>) {
+    fn payout_stakers(reward: NegativeImbalanceOf<Test>) {
+        Balances::resolve_creating(&STAKERS_ACCOUNT, reward);
     }
 }
 
@@ -136,7 +163,7 @@ impl pallet_loc::Config for Test {
     type MaxFileContentTypeSize = MaxFileContentTypeSize;
     type MaxTokensRecordFiles = MaxTokensRecordFiles;
     type WeightInfo = ();
-    type Currency = ();
+    type Currency = Balances;
     type FileStorageByteFee = FileStorageByteFee;
     type FileStorageEntryFee = FileStorageEntryFee;
     type FileStorageFeeDistributor = RewardDistributorImpl;
