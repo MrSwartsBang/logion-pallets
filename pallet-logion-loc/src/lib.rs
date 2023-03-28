@@ -263,10 +263,10 @@ pub mod pallet {
         type Currency: Currency<Self::AccountId>;
 
         /// The variable part of the Fee to pay to store a file (per byte)
-        type FileStorageByteFee: Get<u32>;
+        type FileStorageByteFee: Get<BalanceOf<Self>>;
 
         /// The constant part of the Fee to pay to store a file.
-        type FileStorageEntryFee: Get<u32>;
+        type FileStorageEntryFee: Get<BalanceOf<Self>>;
 
         /// Used to payout file storage fees
         type FileStorageFeeDistributor: RewardDistributor<NegativeImbalanceOf<Self>, BalanceOf<Self>>;
@@ -1344,8 +1344,8 @@ pub mod pallet {
         }
 
         pub fn calculate_fee(num_of_entries: u32, tot_size: u32) -> BalanceOf<T> {
-            let byte_fee: BalanceOf<T> = T::FileStorageByteFee::get().into();
-            let entry_fee: BalanceOf<T> = T::FileStorageEntryFee::get().into();
+            let byte_fee: BalanceOf<T> = T::FileStorageByteFee::get();
+            let entry_fee: BalanceOf<T> = T::FileStorageEntryFee::get();
             byte_fee.saturating_mul(tot_size.into())
                 .saturating_add(entry_fee.saturating_mul(num_of_entries.into()))
         }
