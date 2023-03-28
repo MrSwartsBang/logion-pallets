@@ -3,6 +3,7 @@
 pub use pallet::*;
 
 pub mod migrations;
+pub mod runtime_api;
 
 #[cfg(test)]
 mod mock;
@@ -1335,15 +1336,18 @@ pub mod pallet {
         }
 
         fn apply_file_storage_fee(fee_payer: T::AccountId, num_of_entries: usize, tot_size: u32) -> DispatchResult {
-            let byte_fee: BalanceOf<T> = T::FileStorageByteFee::get().into();
-            let entry_fee: BalanceOf<T> = T::FileStorageEntryFee::get().into();
-            let fee =
-                byte_fee.saturating_mul(tot_size.into())
-                    .saturating_add(entry_fee.saturating_mul((num_of_entries as u32).into()));
+            let fee = Self::calculate_fee(num_of_entries as u32, tot_size);
             ensure!(T::Currency::can_slash(&fee_payer, fee), Error::<T>::InsufficientFunds);
             let (credit, _) = T::Currency::slash(&fee_payer, fee);
             T::FileStorageFeeDistributor::distribute(credit, T::FileStorageFeeDistributionKey::get());
             Ok(())
+        }
+
+        pub fn calculate_fee(num_of_entries: u32, tot_size: u32) -> BalanceOf<T> {
+            let byte_fee: BalanceOf<T> = T::FileStorageByteFee::get().into();
+            let entry_fee: BalanceOf<T> = T::FileStorageEntryFee::get().into();
+            byte_fee.saturating_mul(tot_size.into())
+                .saturating_add(entry_fee.saturating_mul(num_of_entries.into()))
         }
     }
 }
