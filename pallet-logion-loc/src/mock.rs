@@ -172,7 +172,7 @@ impl pallet_loc::Config for Test {
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-    system::GenesisConfig::default().build_storage::<Test>().unwrap().into()
+    new_test_ext_at_block(1)
 }
 
 pub fn new_test_ext_at_block(block_number: u64) -> sp_io::TestExternalities {
