@@ -1575,6 +1575,10 @@ fn check_fees(num_of_files: u32, tot_size: u32, payer: AccountId) {
     assert_eq!(credited_fees, expected_fees);
     let actual_fees = BALANCE_OK_FOR_FILES - get_free_balance(payer);
     assert_eq!(actual_fees, expected_fees);
+    System::assert_has_event(RuntimeEvent::LogionLoc(crate::Event::StorageFeeWithdrawn {
+        0: payer,
+        1: expected_fees,
+    }));
 }
 
 fn check_no_fees(payer: AccountId) {

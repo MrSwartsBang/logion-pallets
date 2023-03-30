@@ -358,6 +358,8 @@ pub mod pallet {
         LocVoid(T::LocId),
         /// Issued when an item was added to a collection. [locId, collectionItemId]
         ItemAdded(T::LocId, T::CollectionItemId),
+        /// Issued when File Storage Fee is withdrawn. [payerAccountId, storageFee]
+        StorageFeeWithdrawn(T::AccountId, BalanceOf<T>)
     }
 
     #[pallet::error]
@@ -1340,6 +1342,7 @@ pub mod pallet {
             ensure!(T::Currency::can_slash(&fee_payer, fee), Error::<T>::InsufficientFunds);
             let (credit, _) = T::Currency::slash(&fee_payer, fee);
             T::FileStorageFeeDistributor::distribute(credit, T::FileStorageFeeDistributionKey::get());
+            Self::deposit_event(Event::StorageFeeWithdrawn(fee_payer, fee));
             Ok(())
         }
 
