@@ -1,12 +1,15 @@
 use frame_support::{assert_err, assert_ok};
 use frame_support::error::BadOrigin;
+use frame_support::traits::Len;
+use sp_core::bytes::from_hex;
 use sp_core::H256;
 use sp_runtime::traits::BlakeTwo256;
 use sp_runtime::traits::Hash;
 
 use logion_shared::{LocQuery, LocValidity};
 
-use crate::{Error, File, LegalOfficerCase, LocLink, LocType, MetadataItem, CollectionItem, CollectionItemFile, CollectionItemToken, mock::*, TermsAndConditionsElement, TokensRecordFile, UnboundedTokensRecordFileOf, VerifiedIssuer, Config};
+use crate::{Error, File, LegalOfficerCase, LocLink, LocType, MetadataItem, CollectionItem, CollectionItemFile, CollectionItemToken, mock::*, TermsAndConditionsElement, TokensRecordFile, UnboundedTokensRecordFileOf, VerifiedIssuer, Config, OtherAccountId, EthereumAddress};
+use crate::Requester::OtherAccount;
 
 const LOC_ID: u32 = 0;
 const OTHER_LOC_ID: u32 = 1;
@@ -1559,6 +1562,43 @@ fn it_fails_adding_metadata_on_polkadot_transaction_loc_cannot_submit() {
             submitter: LOC_OWNER2,
         };
         assert_err!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.clone()), Error::<Test>::CannotSubmit);
+    });
+}
+
+#[test]
+fn it_creates_ethereum_identity_loc() {
+    new_test_ext().execute_with(|| {
+        let ethereum_address = from_hex("0x590E9c11b1c2f20210b9b84dc2417B4A7955d4e6").unwrap();
+        let requester_account_id = OtherAccountId::Ethereum(EthereumAddress::from_slice(ethereum_address.as_slice()));
+        assert_ok!(LogionLoc::create_other_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, requester_account_id.clone()));
+        assert_eq!(LogionLoc::loc(LOC_ID), Some(LegalOfficerCase {
+            owner: LOC_OWNER1,
+            requester: OtherAccount(requester_account_id.clone()),
+            metadata: vec![],
+            files: vec![],
+            closed: false,
+            loc_type: LocType::Identity,
+            links: vec![],
+            void_info: None,
+            replacer_of: None,
+            collection_last_block_submission: Option::None,
+            collection_max_size: Option::None,
+            collection_can_upload: false,
+            seal: Option::None,
+        }));
+        assert_eq!(LogionLoc::other_account_locs(requester_account_id), Some(vec![LOC_ID]));
+        System::assert_has_event(RuntimeEvent::LogionLoc(crate::Event::LocCreated { 0: LOC_ID }));
+    });
+}
+
+
+#[test]
+fn it_fails_creating_ethereum_identity_loc_if_duplicate_loc_id() {
+    new_test_ext().execute_with(|| {
+        let ethereum_address = from_hex("0x590E9c11b1c2f20210b9b84dc2417B4A7955d4e6").unwrap();
+        let requester_address = OtherAccountId::Ethereum(EthereumAddress::from_slice(ethereum_address.as_slice()));
+        assert_ok!(LogionLoc::create_other_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, requester_address.clone()));
+        assert_err!(LogionLoc::create_other_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, requester_address.clone()), Error::<Test>::AlreadyExists);
     });
 }
 

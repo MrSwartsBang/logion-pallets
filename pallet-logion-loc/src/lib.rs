@@ -24,6 +24,7 @@ use scale_info::TypeInfo;
 use logion_shared::LegalOfficerCaseSummary;
 use crate::Requester::Account;
 use frame_support::sp_runtime::Saturating;
+use sp_core::H160;
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
 pub enum LocType {
@@ -64,14 +65,22 @@ pub struct LocVoidInfo<LocId> {
     replacer: Option<LocId>,
 }
 
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo, Copy)]
+pub enum OtherAccountId {
+    Ethereum(EthereumAddress)
+}
+
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
 pub enum Requester<AccountId, LocId> {
     None,
     Account(AccountId),
-    Loc(LocId)
+    Loc(LocId),
+    OtherAccount(OtherAccountId),
 }
 
 pub type RequesterOf<T> = Requester<<T as frame_system::Config>::AccountId, <T as Config>::LocId>;
+
+pub type EthereumAddress = H160;
 
 impl<AccountId, LocId> Default for Requester<AccountId, LocId> {
 
@@ -293,6 +302,11 @@ pub mod pallet {
     #[pallet::storage]
     #[pallet::getter(fn identity_loc_locs)]
     pub type IdentityLocLocsMap<T> = StorageMap<_, Blake2_128Concat, <T as Config>::LocId, Vec<<T as Config>::LocId>>;
+
+    /// Requested LOCs by other requester.
+    #[pallet::storage]
+    #[pallet::getter(fn other_account_locs)]
+    pub type OtherAccountLocsMap<T> = StorageMap<_, Blake2_128Concat, OtherAccountId, Vec<<T as Config>::LocId>>;
 
     /// Collection items by LOC ID.
     #[pallet::storage]
@@ -974,6 +988,30 @@ pub mod pallet {
 
             Ok(().into())
         }
+
+        /// Creates a new Identity LOC whose requester is an Ethereum address.
+        #[pallet::call_index(18)]
+        #[pallet::weight(T::WeightInfo::create_other_identity_loc())]
+        pub fn create_other_identity_loc(
+            origin: OriginFor<T>,
+            #[pallet::compact] loc_id: T::LocId,
+            requester_account_id: OtherAccountId,
+        ) -> DispatchResultWithPostInfo {
+            let who = T::IsLegalOfficer::ensure_origin(origin.clone())?;
+
+            if <LocMap<T>>::contains_key(&loc_id) {
+                Err(Error::<T>::AlreadyExists)?
+            } else {
+                let requester = RequesterOf::<T>::OtherAccount(requester_account_id.clone());
+                let loc = Self::build_open_loc(&who, &requester, LocType::Identity);
+
+                <LocMap<T>>::insert(loc_id, loc);
+                Self::link_with_other_account(&requester_account_id, &loc_id);
+
+                Self::deposit_event(Event::LocCreated(loc_id));
+                Ok(().into())
+            }
+        }
     }
 
     impl<T: Config> LocQuery<T::LocId, <T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -1120,6 +1158,20 @@ pub mod pallet {
                 });
             } else {
                 <IdentityLocLocsMap<T>>::insert(requester_loc_id, Vec::from([loc_id.clone()]));
+            }
+        }
+
+        fn link_with_other_account(
+            account_id: &OtherAccountId,
+            loc_id: &<T as Config>::LocId,
+        ) {
+            if <OtherAccountLocsMap<T>>::contains_key(account_id) {
+                <OtherAccountLocsMap<T>>::mutate(account_id, |locs| {
+                    let list = locs.as_mut().unwrap();
+                    list.push(loc_id.clone());
+                });
+            } else {
+                <OtherAccountLocsMap<T>>::insert(account_id, Vec::from([loc_id.clone()]));
             }
         }
 
