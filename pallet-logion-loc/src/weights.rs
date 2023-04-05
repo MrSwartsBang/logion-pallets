@@ -53,10 +53,12 @@ pub trait WeightInfo {
     fn dismiss_issuer() -> Weight;
     fn set_issuer_selection() -> Weight;
     fn add_tokens_record() -> Weight;
+    fn create_other_identity_loc() -> Weight;
 }
 
 /// Weights for pallet_logion_loc using the Substrate node and recommended hardware.
 pub struct SubstrateWeight<T>(PhantomData<T>);
+
 impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
     fn create_polkadot_identity_loc() -> Weight {
         Weight::from_parts(29_862_000, 0)
@@ -119,12 +121,12 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().writes(2))
     }
     fn nominate_issuer() -> Weight {
-      Weight::from_parts(11_971_000, 0)
+        Weight::from_parts(11_971_000, 0)
             .saturating_add(T::DbWeight::get().reads(1))
             .saturating_add(T::DbWeight::get().writes(1))
     }
     fn dismiss_issuer() -> Weight {
-      Weight::from_parts(11_971_000, 0)
+        Weight::from_parts(11_971_000, 0)
             .saturating_add(T::DbWeight::get().reads(1))
             .saturating_add(T::DbWeight::get().writes(1))
     }
@@ -138,88 +140,98 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().reads(3))
             .saturating_add(T::DbWeight::get().writes(2))
     }
+    fn create_other_identity_loc() -> Weight {
+        Weight::from_parts(20_945_000, 0)
+            .saturating_add(T::DbWeight::get().reads(2))
+            .saturating_add(T::DbWeight::get().writes(1))
+    }
 }
 
 // For backwards compatibility and tests
 impl WeightInfo for () {
-  fn create_polkadot_identity_loc() -> Weight {
-    Weight::from_parts(29_862_000, 0)
-      .saturating_add(RocksDbWeight::get().reads(3))
-      .saturating_add(RocksDbWeight::get().writes(2))
-  }
-  fn create_logion_identity_loc() -> Weight {
-    Weight::from_parts(20_945_000, 0)
-      .saturating_add(RocksDbWeight::get().reads(2))
-      .saturating_add(RocksDbWeight::get().writes(1))
-  }
-  fn create_polkadot_transaction_loc() -> Weight {
-    Weight::from_parts(26_316_000, 0)
-      .saturating_add(RocksDbWeight::get().reads(3))
-      .saturating_add(RocksDbWeight::get().writes(2))
-  }
-  fn create_logion_transaction_loc() -> Weight {
-    Weight::from_parts(30_288_000, 0)
-      .saturating_add(RocksDbWeight::get().reads(4))
-      .saturating_add(RocksDbWeight::get().writes(2))
-  }
-  fn add_metadata() -> Weight {
-    Weight::from_parts(11_979_000, 0)
-      .saturating_add(RocksDbWeight::get().reads(1))
-      .saturating_add(RocksDbWeight::get().writes(1))
-  }
-  fn add_file() -> Weight {
-    Weight::from_parts(11_971_000, 0)
-      .saturating_add(RocksDbWeight::get().reads(1))
-      .saturating_add(RocksDbWeight::get().writes(1))
-  }
-  fn add_link() -> Weight {
-    Weight::from_parts(16_067_000, 0)
-      .saturating_add(RocksDbWeight::get().reads(2))
-      .saturating_add(RocksDbWeight::get().writes(1))
-  }
-  fn close() -> Weight {
-    Weight::from_parts(22_224_000, 0)
-      .saturating_add(RocksDbWeight::get().reads(1))
-      .saturating_add(RocksDbWeight::get().writes(1))
-  }
-  fn make_void() -> Weight {
-    Weight::from_parts(22_360_000, 0)
-      .saturating_add(RocksDbWeight::get().reads(1))
-      .saturating_add(RocksDbWeight::get().writes(1))
-  }
-  fn make_void_and_replace() -> Weight {
-    Weight::from_parts(32_724_000, 0)
-      .saturating_add(RocksDbWeight::get().reads(2))
-      .saturating_add(RocksDbWeight::get().writes(2))
-  }
-  fn create_collection_loc() -> Weight {
-    Weight::from_parts(29_219_000, 0)
-      .saturating_add(RocksDbWeight::get().reads(3))
-      .saturating_add(RocksDbWeight::get().writes(2))
-  }
-  fn add_collection_item() -> Weight {
-    Weight::from_parts(31_621_000, 0)
-      .saturating_add(RocksDbWeight::get().reads(3))
-      .saturating_add(RocksDbWeight::get().writes(2))
-  }
-  fn nominate_issuer() -> Weight {
-    Weight::from_parts(11_971_000, 0)
-      .saturating_add(RocksDbWeight::get().reads(1))
-      .saturating_add(RocksDbWeight::get().writes(1))
-  }
-  fn dismiss_issuer() -> Weight {
-    Weight::from_parts(11_971_000, 0)
-      .saturating_add(RocksDbWeight::get().reads(1))
-      .saturating_add(RocksDbWeight::get().writes(1))
-  }
-  fn set_issuer_selection() -> Weight {
-    Weight::from_parts(11_971_000, 0)
-      .saturating_add(RocksDbWeight::get().reads(1))
-      .saturating_add(RocksDbWeight::get().writes(1))
-  }
-  fn add_tokens_record() -> Weight {
-    Weight::from_parts(31_621_000, 0)
-      .saturating_add(RocksDbWeight::get().reads(3))
-      .saturating_add(RocksDbWeight::get().writes(2))
-}
+    fn create_polkadot_identity_loc() -> Weight {
+        Weight::from_parts(29_862_000, 0)
+            .saturating_add(RocksDbWeight::get().reads(3))
+            .saturating_add(RocksDbWeight::get().writes(2))
+    }
+    fn create_logion_identity_loc() -> Weight {
+        Weight::from_parts(20_945_000, 0)
+            .saturating_add(RocksDbWeight::get().reads(2))
+            .saturating_add(RocksDbWeight::get().writes(1))
+    }
+    fn create_polkadot_transaction_loc() -> Weight {
+        Weight::from_parts(26_316_000, 0)
+            .saturating_add(RocksDbWeight::get().reads(3))
+            .saturating_add(RocksDbWeight::get().writes(2))
+    }
+    fn create_logion_transaction_loc() -> Weight {
+        Weight::from_parts(30_288_000, 0)
+            .saturating_add(RocksDbWeight::get().reads(4))
+            .saturating_add(RocksDbWeight::get().writes(2))
+    }
+    fn add_metadata() -> Weight {
+        Weight::from_parts(11_979_000, 0)
+            .saturating_add(RocksDbWeight::get().reads(1))
+            .saturating_add(RocksDbWeight::get().writes(1))
+    }
+    fn add_file() -> Weight {
+        Weight::from_parts(11_971_000, 0)
+            .saturating_add(RocksDbWeight::get().reads(1))
+            .saturating_add(RocksDbWeight::get().writes(1))
+    }
+    fn add_link() -> Weight {
+        Weight::from_parts(16_067_000, 0)
+            .saturating_add(RocksDbWeight::get().reads(2))
+            .saturating_add(RocksDbWeight::get().writes(1))
+    }
+    fn close() -> Weight {
+        Weight::from_parts(22_224_000, 0)
+            .saturating_add(RocksDbWeight::get().reads(1))
+            .saturating_add(RocksDbWeight::get().writes(1))
+    }
+    fn make_void() -> Weight {
+        Weight::from_parts(22_360_000, 0)
+            .saturating_add(RocksDbWeight::get().reads(1))
+            .saturating_add(RocksDbWeight::get().writes(1))
+    }
+    fn make_void_and_replace() -> Weight {
+        Weight::from_parts(32_724_000, 0)
+            .saturating_add(RocksDbWeight::get().reads(2))
+            .saturating_add(RocksDbWeight::get().writes(2))
+    }
+    fn create_collection_loc() -> Weight {
+        Weight::from_parts(29_219_000, 0)
+            .saturating_add(RocksDbWeight::get().reads(3))
+            .saturating_add(RocksDbWeight::get().writes(2))
+    }
+    fn add_collection_item() -> Weight {
+        Weight::from_parts(31_621_000, 0)
+            .saturating_add(RocksDbWeight::get().reads(3))
+            .saturating_add(RocksDbWeight::get().writes(2))
+    }
+    fn nominate_issuer() -> Weight {
+        Weight::from_parts(11_971_000, 0)
+            .saturating_add(RocksDbWeight::get().reads(1))
+            .saturating_add(RocksDbWeight::get().writes(1))
+    }
+    fn dismiss_issuer() -> Weight {
+        Weight::from_parts(11_971_000, 0)
+            .saturating_add(RocksDbWeight::get().reads(1))
+            .saturating_add(RocksDbWeight::get().writes(1))
+    }
+    fn set_issuer_selection() -> Weight {
+        Weight::from_parts(11_971_000, 0)
+            .saturating_add(RocksDbWeight::get().reads(1))
+            .saturating_add(RocksDbWeight::get().writes(1))
+    }
+    fn add_tokens_record() -> Weight {
+        Weight::from_parts(31_621_000, 0)
+            .saturating_add(RocksDbWeight::get().reads(3))
+            .saturating_add(RocksDbWeight::get().writes(2))
+    }
+    fn create_other_identity_loc() -> Weight {
+        Weight::from_parts(20_945_000, 0)
+            .saturating_add(RocksDbWeight::get().reads(2))
+            .saturating_add(RocksDbWeight::get().writes(1))
+    }
 }

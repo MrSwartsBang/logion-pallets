@@ -4,12 +4,14 @@ use sp_core::hash::H256;
 use frame_support::{construct_runtime, parameter_types, traits::{EnsureOrigin, Currency}};
 use sp_runtime::{traits::{BlakeTwo256, IdentityLookup}, testing::Header, Percent};
 use frame_system as system;
+use sp_core::H160;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 
 pub type AccountId = u64;
 pub type Balance = u128;
+pub type EthereumAddress = H160;
 
 construct_runtime!(
     pub struct Test where
@@ -168,6 +170,7 @@ impl pallet_loc::Config for Test {
     type FileStorageEntryFee = FileStorageEntryFee;
     type FileStorageFeeDistributor = RewardDistributorImpl;
     type FileStorageFeeDistributionKey = RewardDistributionKey;
+    type EthereumAddress = H160;
 }
 
 // Build genesis storage according to the mock runtime.

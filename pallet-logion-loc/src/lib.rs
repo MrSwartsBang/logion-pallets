@@ -64,18 +64,24 @@ pub struct LocVoidInfo<LocId> {
     replacer: Option<LocId>,
 }
 
-#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
-pub enum Requester<AccountId, LocId> {
-    None,
-    Account(AccountId),
-    Loc(LocId)
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo, Copy)]
+pub enum OtherAccountId<EthereumAddress> {
+    Ethereum(EthereumAddress)
 }
 
-pub type RequesterOf<T> = Requester<<T as frame_system::Config>::AccountId, <T as Config>::LocId>;
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
+pub enum Requester<AccountId, LocId, EthereumAddress> {
+    None,
+    Account(AccountId),
+    Loc(LocId),
+    OtherAccount(OtherAccountId<EthereumAddress>),
+}
 
-impl<AccountId, LocId> Default for Requester<AccountId, LocId> {
+pub type RequesterOf<T> = Requester<<T as frame_system::Config>::AccountId, <T as Config>::LocId, <T as Config>::EthereumAddress>;
 
-    fn default() -> Requester<AccountId, LocId> {
+impl<AccountId, LocId, EthereumAddress> Default for Requester<AccountId, LocId, EthereumAddress> {
+
+    fn default() -> Requester<AccountId, LocId, EthereumAddress> {
         Requester::None
     }
 }
@@ -83,9 +89,9 @@ impl<AccountId, LocId> Default for Requester<AccountId, LocId> {
 pub type CollectionSize = u32;
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-pub struct LegalOfficerCase<AccountId, Hash, LocId, BlockNumber> {
+pub struct LegalOfficerCase<AccountId, Hash, LocId, BlockNumber, EthereumAddress> {
     owner: AccountId,
-    requester: Requester<AccountId, LocId>,
+    requester: Requester<AccountId, LocId, EthereumAddress>,
     metadata: Vec<MetadataItem<AccountId>>,
     files: Vec<File<Hash, AccountId>>,
     closed: bool,
@@ -104,6 +110,7 @@ pub type LegalOfficerCaseOf<T> = LegalOfficerCase<
     <T as pallet::Config>::Hash,
     <T as pallet::Config>::LocId,
     <T as frame_system::Config>::BlockNumber,
+    <T as pallet::Config>::EthereumAddress,
 >;
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
@@ -273,6 +280,9 @@ pub mod pallet {
 
         /// Used to payout rewards
         type FileStorageFeeDistributionKey: Get<DistributionKey>;
+
+        /// Ethereum Address type
+        type EthereumAddress: Member + Parameter + Default + Copy;
     }
 
     #[pallet::pallet]
@@ -293,6 +303,11 @@ pub mod pallet {
     #[pallet::storage]
     #[pallet::getter(fn identity_loc_locs)]
     pub type IdentityLocLocsMap<T> = StorageMap<_, Blake2_128Concat, <T as Config>::LocId, Vec<<T as Config>::LocId>>;
+
+    /// Requested LOCs by other requester.
+    #[pallet::storage]
+    #[pallet::getter(fn other_account_locs)]
+    pub type OtherAccountLocsMap<T> = StorageMap<_, Blake2_128Concat, OtherAccountId<<T as Config>::EthereumAddress>, Vec<<T as Config>::LocId>>;
 
     /// Collection items by LOC ID.
     #[pallet::storage]
@@ -974,6 +989,30 @@ pub mod pallet {
 
             Ok(().into())
         }
+
+        /// Creates a new Identity LOC whose requester is another address (Currently only Ethereum address is supported).
+        #[pallet::call_index(18)]
+        #[pallet::weight(T::WeightInfo::create_other_identity_loc())]
+        pub fn create_other_identity_loc(
+            origin: OriginFor<T>,
+            #[pallet::compact] loc_id: T::LocId,
+            requester_account_id: OtherAccountId<T::EthereumAddress>,
+        ) -> DispatchResultWithPostInfo {
+            let who = T::IsLegalOfficer::ensure_origin(origin.clone())?;
+
+            if <LocMap<T>>::contains_key(&loc_id) {
+                Err(Error::<T>::AlreadyExists)?
+            } else {
+                let requester = RequesterOf::<T>::OtherAccount(requester_account_id.clone());
+                let loc = Self::build_open_loc(&who, &requester, LocType::Identity);
+
+                <LocMap<T>>::insert(loc_id, loc);
+                Self::link_with_other_account(&requester_account_id, &loc_id);
+
+                Self::deposit_event(Event::LocCreated(loc_id));
+                Ok(().into())
+            }
+        }
     }
 
     impl<T: Config> LocQuery<T::LocId, <T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -1120,6 +1159,20 @@ pub mod pallet {
                 });
             } else {
                 <IdentityLocLocsMap<T>>::insert(requester_loc_id, Vec::from([loc_id.clone()]));
+            }
+        }
+
+        fn link_with_other_account(
+            account_id: &OtherAccountId<T::EthereumAddress>,
+            loc_id: &<T as Config>::LocId,
+        ) {
+            if <OtherAccountLocsMap<T>>::contains_key(account_id) {
+                <OtherAccountLocsMap<T>>::mutate(account_id, |locs| {
+                    let list = locs.as_mut().unwrap();
+                    list.push(loc_id.clone());
+                });
+            } else {
+                <OtherAccountLocsMap<T>>::insert(account_id, Vec::from([loc_id.clone()]));
             }
         }
 
