@@ -8,7 +8,7 @@ use sp_runtime::traits::Hash;
 
 use logion_shared::{LocQuery, LocValidity};
 
-use crate::{Error, File, LegalOfficerCase, LocLink, LocType, MetadataItem, CollectionItem, CollectionItemFile, CollectionItemToken, mock::*, TermsAndConditionsElement, TokensRecordFile, UnboundedTokensRecordFileOf, VerifiedIssuer, Config, OtherAccountId, EthereumAddress};
+use crate::{Error, File, LegalOfficerCase, LocLink, LocType, MetadataItem, CollectionItem, CollectionItemFile, CollectionItemToken, mock::*, TermsAndConditionsElement, TokensRecordFile, UnboundedTokensRecordFileOf, VerifiedIssuer, Config, OtherAccountId};
 use crate::Requester::OtherAccount;
 
 const LOC_ID: u32 = 0;

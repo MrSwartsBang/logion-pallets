@@ -20,9 +20,9 @@ pub mod v10 {
     type FileV9Of<T> = FileV9<<T as pallet::Config>::Hash, <T as frame_system::Config>::AccountId>;
 
     #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-    pub struct LegalOfficerCaseV9<AccountId, Hash, LocId, BlockNumber> {
+    pub struct LegalOfficerCaseV9<AccountId, Hash, LocId, BlockNumber, EthereumAddress> {
         owner: AccountId,
-        requester: Requester<AccountId, LocId>,
+        requester: Requester<AccountId, LocId, EthereumAddress>,
         metadata: Vec<MetadataItem<AccountId>>,
         files: Vec<FileV9<Hash, AccountId>>,
         closed: bool,
@@ -36,7 +36,13 @@ pub mod v10 {
         seal: Option<Hash>,
     }
 
-    type LegalOfficerCaseOfV9<T> = LegalOfficerCaseV9<<T as frame_system::Config>::AccountId, <T as pallet::Config>::Hash, <T as pallet::Config>::LocId, <T as frame_system::Config>::BlockNumber>;
+    type LegalOfficerCaseOfV9<T> = LegalOfficerCaseV9<
+        <T as frame_system::Config>::AccountId,
+        <T as pallet::Config>::Hash,
+        <T as pallet::Config>::LocId,
+        <T as frame_system::Config>::BlockNumber,
+        <T as pallet::Config>::EthereumAddress,
+    >;
 
     pub struct AddSizeToLocFile<T>(sp_std::marker::PhantomData<T>);
 

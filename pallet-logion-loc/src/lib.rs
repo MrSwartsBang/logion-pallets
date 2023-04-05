@@ -24,7 +24,6 @@ use scale_info::TypeInfo;
 use logion_shared::LegalOfficerCaseSummary;
 use crate::Requester::Account;
 use frame_support::sp_runtime::Saturating;
-use sp_core::H160;
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
 pub enum LocType {
@@ -66,25 +65,23 @@ pub struct LocVoidInfo<LocId> {
 }
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo, Copy)]
-pub enum OtherAccountId {
+pub enum OtherAccountId<EthereumAddress> {
     Ethereum(EthereumAddress)
 }
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
-pub enum Requester<AccountId, LocId> {
+pub enum Requester<AccountId, LocId, EthereumAddress> {
     None,
     Account(AccountId),
     Loc(LocId),
-    OtherAccount(OtherAccountId),
+    OtherAccount(OtherAccountId<EthereumAddress>),
 }
 
-pub type RequesterOf<T> = Requester<<T as frame_system::Config>::AccountId, <T as Config>::LocId>;
+pub type RequesterOf<T> = Requester<<T as frame_system::Config>::AccountId, <T as Config>::LocId, <T as Config>::EthereumAddress>;
 
-pub type EthereumAddress = H160;
+impl<AccountId, LocId, EthereumAddress> Default for Requester<AccountId, LocId, EthereumAddress> {
 
-impl<AccountId, LocId> Default for Requester<AccountId, LocId> {
-
-    fn default() -> Requester<AccountId, LocId> {
+    fn default() -> Requester<AccountId, LocId, EthereumAddress> {
         Requester::None
     }
 }
@@ -92,9 +89,9 @@ impl<AccountId, LocId> Default for Requester<AccountId, LocId> {
 pub type CollectionSize = u32;
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-pub struct LegalOfficerCase<AccountId, Hash, LocId, BlockNumber> {
+pub struct LegalOfficerCase<AccountId, Hash, LocId, BlockNumber, EthereumAddress> {
     owner: AccountId,
-    requester: Requester<AccountId, LocId>,
+    requester: Requester<AccountId, LocId, EthereumAddress>,
     metadata: Vec<MetadataItem<AccountId>>,
     files: Vec<File<Hash, AccountId>>,
     closed: bool,
@@ -113,6 +110,7 @@ pub type LegalOfficerCaseOf<T> = LegalOfficerCase<
     <T as pallet::Config>::Hash,
     <T as pallet::Config>::LocId,
     <T as frame_system::Config>::BlockNumber,
+    <T as pallet::Config>::EthereumAddress,
 >;
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
@@ -282,6 +280,9 @@ pub mod pallet {
 
         /// Used to payout rewards
         type FileStorageFeeDistributionKey: Get<DistributionKey>;
+
+        /// Ethereum Address type
+        type EthereumAddress: Member + Parameter + Default + Copy;
     }
 
     #[pallet::pallet]
@@ -306,7 +307,7 @@ pub mod pallet {
     /// Requested LOCs by other requester.
     #[pallet::storage]
     #[pallet::getter(fn other_account_locs)]
-    pub type OtherAccountLocsMap<T> = StorageMap<_, Blake2_128Concat, OtherAccountId, Vec<<T as Config>::LocId>>;
+    pub type OtherAccountLocsMap<T> = StorageMap<_, Blake2_128Concat, OtherAccountId<<T as Config>::EthereumAddress>, Vec<<T as Config>::LocId>>;
 
     /// Collection items by LOC ID.
     #[pallet::storage]
@@ -995,7 +996,7 @@ pub mod pallet {
         pub fn create_other_identity_loc(
             origin: OriginFor<T>,
             #[pallet::compact] loc_id: T::LocId,
-            requester_account_id: OtherAccountId,
+            requester_account_id: OtherAccountId<T::EthereumAddress>,
         ) -> DispatchResultWithPostInfo {
             let who = T::IsLegalOfficer::ensure_origin(origin.clone())?;
 
@@ -1162,7 +1163,7 @@ pub mod pallet {
         }
 
         fn link_with_other_account(
-            account_id: &OtherAccountId,
+            account_id: &OtherAccountId<T::EthereumAddress>,
             loc_id: &<T as Config>::LocId,
         ) {
             if <OtherAccountLocsMap<T>>::contains_key(account_id) {
