@@ -990,7 +990,7 @@ pub mod pallet {
             Ok(().into())
         }
 
-        /// Creates a new Identity LOC whose requester is an Ethereum address.
+        /// Creates a new Identity LOC whose requester is another address (Currently only Ethereum address is supported).
         #[pallet::call_index(18)]
         #[pallet::weight(T::WeightInfo::create_other_identity_loc())]
         pub fn create_other_identity_loc(
