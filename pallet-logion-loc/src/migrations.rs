@@ -4,27 +4,36 @@ use frame_support::dispatch::Vec;
 use frame_support::weights::Weight;
 use frame_support::traits::OnRuntimeUpgrade;
 
-use crate::{Config, LegalOfficerCaseOf, pallet, PalletStorageVersion, pallet::StorageVersion};
+use crate::{Config, LegalOfficerCaseOf, PalletStorageVersion, pallet::StorageVersion};
 
-pub mod v10 {
+pub mod v11 {
     use super::*;
     use crate::*;
 
+    #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
+    pub struct MetadataItemV10<AccountId> {
+        name: Vec<u8>,
+        value: Vec<u8>,
+        submitter: AccountId,
+    }
+
+    type MetadataItemV10Of<T> = MetadataItemV10<<T as frame_system::Config>::AccountId>;
+
     #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug)]
-    struct FileV9<Hash, AccountId> {
+    struct FileV10<Hash, AccountId> {
         hash: Hash,
         nature: Vec<u8>,
         submitter: AccountId,
     }
 
-    type FileV9Of<T> = FileV9<<T as pallet::Config>::Hash, <T as frame_system::Config>::AccountId>;
+    type FileV10Of<T> = FileV10<<T as pallet::Config>::Hash, <T as frame_system::Config>::AccountId>;
 
     #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-    pub struct LegalOfficerCaseV9<AccountId, Hash, LocId, BlockNumber, EthereumAddress> {
+    pub struct LegalOfficerCaseV10<AccountId, Hash, LocId, BlockNumber, EthereumAddress> {
         owner: AccountId,
         requester: Requester<AccountId, LocId, EthereumAddress>,
-        metadata: Vec<MetadataItem<AccountId>>,
-        files: Vec<FileV9<Hash, AccountId>>,
+        metadata: Vec<MetadataItemV10<AccountId>>,
+        files: Vec<FileV10<Hash, AccountId>>,
         closed: bool,
         loc_type: LocType,
         links: Vec<LocLink<LocId>>,
@@ -36,7 +45,7 @@ pub mod v10 {
         seal: Option<Hash>,
     }
 
-    type LegalOfficerCaseOfV9<T> = LegalOfficerCaseV9<
+    type LegalOfficerCaseV10Of<T> = LegalOfficerCaseV10<
         <T as frame_system::Config>::AccountId,
         <T as pallet::Config>::Hash,
         <T as pallet::Config>::LocId,
@@ -44,29 +53,37 @@ pub mod v10 {
         <T as pallet::Config>::EthereumAddress,
     >;
 
-    pub struct AddSizeToLocFile<T>(sp_std::marker::PhantomData<T>);
+    pub struct EnableEthereumSubmitter<T>(sp_std::marker::PhantomData<T>);
 
-    impl<T: Config> OnRuntimeUpgrade for AddSizeToLocFile<T> {
+    impl<T: Config> OnRuntimeUpgrade for EnableEthereumSubmitter<T> {
         fn on_runtime_upgrade() -> Weight {
             super::do_storage_upgrade::<T, _>(
-                StorageVersion::V9TermsAndConditions,
                 StorageVersion::V10AddLocFileSize,
-                "AddSizeToLocFile",
+                StorageVersion::V11EnableEthereumSubmitter,
+                "EnableEthereumSubmitter",
                 || {
-                    LocMap::<T>::translate_values(|loc: LegalOfficerCaseOfV9<T>| {
-                        let files: Vec<File<<T as pallet::Config>::Hash, <T as frame_system::Config>::AccountId>> = loc.files
+                    LocMap::<T>::translate_values(|loc: LegalOfficerCaseV10Of<T>| {
+                        let files: Vec<File<<T as pallet::Config>::Hash, <T as frame_system::Config>::AccountId, T::EthereumAddress>> = loc.files
                             .iter()
-                            .map(|file: &FileV9Of<T>| File {
+                            .map(|file: &FileV10Of<T>| File {
                                 hash: file.hash,
                                 nature: file.nature.clone(),
-                                submitter: file.submitter.clone(),
+                                submitter: SupportedAccountId::Polkadot(file.submitter.clone()),
                                 size: 0
+                            })
+                            .collect();
+                        let metadata: Vec<MetadataItem<<T as frame_system::Config>::AccountId, T::EthereumAddress>> = loc.metadata
+                            .iter()
+                            .map(|item: &MetadataItemV10Of<T>| MetadataItem {
+                                name: item.name.clone(),
+                                value: item.value.clone(),
+                                submitter: SupportedAccountId::Polkadot(item.submitter.clone()),
                             })
                             .collect();
                         Some(LegalOfficerCaseOf::<T> {
                             owner: loc.owner,
                             requester: loc.requester,
-                            metadata: loc.metadata,
+                            metadata,
                             files,
                             closed: loc.closed,
                             loc_type: loc.loc_type,
@@ -85,44 +102,6 @@ pub mod v10 {
     }
 }
 
-pub mod v9 {
-    use super::*;
-    use crate::{CollectionItemFile, CollectionItemsMap, CollectionItemOf, CollectionItemToken};
-
-    #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug)]
-    struct CollectionItemV8<Hash> {
-        description: Vec<u8>,
-        files: Vec<CollectionItemFile<Hash>>,
-        token: Option<CollectionItemToken>,
-        restricted_delivery: bool,
-    }
-
-    type CollectionItemV8Of<T> = CollectionItemV8<<T as pallet::Config>::Hash>;
-
-    pub struct AddTermsAndConditionsToCollectionItem<T>(sp_std::marker::PhantomData<T>);
-    impl<T: Config> OnRuntimeUpgrade for AddTermsAndConditionsToCollectionItem<T> {
-
-        fn on_runtime_upgrade() -> Weight {
-            super::do_storage_upgrade::<T, _>(
-                StorageVersion::V8AddSeal,
-                StorageVersion::V9TermsAndConditions,
-                "AddTermsAndConditionsToCollectionItem",
-                || {
-                    CollectionItemsMap::<T>::translate(|_loc_id: T::LocId, _item_id: T::CollectionItemId, item: CollectionItemV8Of<T>| {
-                        let new_item = CollectionItemOf::<T> {
-                            description: item.description.clone(),
-                            files: item.files.clone(),
-                            token: item.token.clone(),
-                            restricted_delivery: item.restricted_delivery.clone(),
-                            terms_and_conditions: Vec::new(),
-                        };
-                        Some(new_item)
-                    });
-                }
-            )
-        }
-    }
-}
 
 fn do_storage_upgrade<T: Config, F>(expected_version: StorageVersion, target_version: StorageVersion, migration_name: &str, migration: F) -> Weight
 where F: FnOnce() -> () {

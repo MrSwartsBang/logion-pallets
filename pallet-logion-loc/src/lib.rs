@@ -39,10 +39,10 @@ impl Default for LocType {
 }
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-pub struct MetadataItem<AccountId> {
+pub struct MetadataItem<AccountId, EthereumAddress> {
     name: Vec<u8>,
     value: Vec<u8>,
-    submitter: AccountId,
+    submitter: SupportedAccountId<AccountId, EthereumAddress>,
 }
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
@@ -52,10 +52,10 @@ pub struct LocLink<LocId> {
 }
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-pub struct File<Hash, AccountId> {
+pub struct File<Hash, AccountId, EthereumAddress> {
     hash: Hash,
     nature: Vec<u8>,
-    submitter: AccountId,
+    submitter: SupportedAccountId<AccountId, EthereumAddress>,
     size: u32,
 }
 
@@ -86,14 +86,28 @@ impl<AccountId, LocId, EthereumAddress> Default for Requester<AccountId, LocId, 
     }
 }
 
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo, Copy)]
+pub enum SupportedAccountId<AccountId, EthereumAddress> {
+    None, // Enables "null" account ID
+    Polkadot(AccountId),
+    Ethereum(EthereumAddress)
+}
+
+impl<AccountId, EthereumAddress> Default for SupportedAccountId<AccountId, EthereumAddress> {
+
+    fn default() -> SupportedAccountId<AccountId, EthereumAddress> {
+        SupportedAccountId::None
+    }
+}
+
 pub type CollectionSize = u32;
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
 pub struct LegalOfficerCase<AccountId, Hash, LocId, BlockNumber, EthereumAddress> {
     owner: AccountId,
     requester: Requester<AccountId, LocId, EthereumAddress>,
-    metadata: Vec<MetadataItem<AccountId>>,
-    files: Vec<File<Hash, AccountId>>,
+    metadata: Vec<MetadataItem<AccountId, EthereumAddress>>,
+    files: Vec<File<Hash, AccountId, EthereumAddress>>,
     closed: bool,
     loc_type: LocType,
     links: Vec<LocLink<LocId>>,
@@ -482,6 +496,7 @@ pub mod pallet {
         V8AddSeal,
         V9TermsAndConditions,
         V10AddLocFileSize,
+        V11EnableEthereumSubmitter,
     }
 
     impl Default for StorageVersion {
@@ -642,7 +657,7 @@ pub mod pallet {
         pub fn add_metadata(
             origin: OriginFor<T>,
             #[pallet::compact] loc_id: T::LocId,
-            item: MetadataItem<T::AccountId>
+            item: MetadataItem<T::AccountId, T::EthereumAddress>
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
@@ -684,7 +699,7 @@ pub mod pallet {
         pub fn add_file(
             origin: OriginFor<T>,
             #[pallet::compact] loc_id: T::LocId,
-            file: File<<T as pallet::Config>::Hash, T::AccountId>
+            file: File<<T as pallet::Config>::Hash, T::AccountId, T::EthereumAddress>
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
@@ -1383,10 +1398,22 @@ pub mod pallet {
                 && collection_loc.void_info.is_none()
         }
 
-        fn can_submit(loc_id: &T::LocId, loc: &LegalOfficerCaseOf<T>, submitter: &T::AccountId) -> bool {
-            *submitter == loc.owner
-                || match &loc.requester { Account(requester_account) => *submitter == *requester_account, _ => false }
-                || Self::verified_issuers_by_loc(loc_id, submitter).is_some()
+        fn can_submit(loc_id: &T::LocId, loc: &LegalOfficerCaseOf<T>, submitter: &SupportedAccountId<T::AccountId, T::EthereumAddress>) -> bool {
+            match &submitter {
+                SupportedAccountId::Polkadot(pokadot_submitter) => *pokadot_submitter == loc.owner
+                    || match &loc.requester {
+                        Account(requester_account) => *pokadot_submitter == *requester_account,
+                        _ => false
+                    }
+                    || Self::verified_issuers_by_loc(loc_id, pokadot_submitter).is_some(),
+                SupportedAccountId::Ethereum(ethereum_submitter) => match &loc.requester {
+                    Requester::OtherAccount(other_requester) => match &other_requester {
+                        OtherAccountId::Ethereum(ethereum_requester) => *ethereum_submitter == *ethereum_requester,
+                    },
+                    _ => false
+                }
+                _ => false,
+            }
         }
 
         fn apply_file_storage_fee(fee_payer: T::AccountId, num_of_entries: usize, tot_size: u32) -> DispatchResult {
