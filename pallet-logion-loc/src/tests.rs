@@ -1,14 +1,15 @@
+use core::str::FromStr;
 use frame_support::{assert_err, assert_ok};
 use frame_support::error::BadOrigin;
 use frame_support::traits::Len;
 use sp_core::bytes::from_hex;
-use sp_core::H256;
+use sp_core::{H256, H160};
 use sp_runtime::traits::BlakeTwo256;
 use sp_runtime::traits::Hash;
 
 use logion_shared::{LocQuery, LocValidity};
 
-use crate::{Error, File, LegalOfficerCase, LocLink, LocType, MetadataItem, CollectionItem, CollectionItemFile, CollectionItemToken, mock::*, TermsAndConditionsElement, TokensRecordFile, UnboundedTokensRecordFileOf, VerifiedIssuer, Config, OtherAccountId};
+use crate::{Error, File, LegalOfficerCase, LocLink, LocType, MetadataItem, CollectionItem, CollectionItemFile, CollectionItemToken, mock::*, TermsAndConditionsElement, TokensRecordFile, UnboundedTokensRecordFileOf, VerifiedIssuer, Config, OtherAccountId, SupportedAccountId};
 use crate::Requester::OtherAccount;
 
 const LOC_ID: u32 = 0;
@@ -144,7 +145,7 @@ fn it_adds_metadata_when_submitter_is_owner() {
         let metadata = MetadataItem {
             name: vec![1, 2, 3],
             value: vec![4, 5, 6],
-            submitter: LOC_OWNER1,
+            submitter: SupportedAccountId::Polkadot(LOC_OWNER1),
         };
         assert_ok!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.clone()));
         let loc = LogionLoc::loc(LOC_ID).unwrap();
@@ -159,7 +160,7 @@ fn it_adds_metadata_when_submitter_is_requester() {
         let metadata = MetadataItem {
             name: vec![1, 2, 3],
             value: vec![4, 5, 6],
-            submitter: LOC_REQUESTER_ID,
+            submitter: SupportedAccountId::Polkadot(LOC_REQUESTER_ID),
         };
         assert_ok!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.clone()));
         let loc = LogionLoc::loc(LOC_ID).unwrap();
@@ -174,7 +175,7 @@ fn it_fails_adding_metadata_for_unauthorized_caller() {
         let metadata = MetadataItem {
             name: vec![1, 2, 3],
             value: vec![4, 5, 6],
-            submitter: LOC_OWNER1,
+            submitter: SupportedAccountId::Polkadot(LOC_OWNER1),
         };
         assert_err!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, metadata.clone()), Error::<Test>::Unauthorized);
     });
@@ -187,7 +188,7 @@ fn it_fails_adding_metadata_when_closed() {
         let metadata = MetadataItem {
             name: vec![1, 2, 3],
             value: vec![4, 5, 6],
-            submitter: LOC_OWNER1,
+            submitter: SupportedAccountId::Polkadot(LOC_OWNER1),
         };
         assert_err!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.clone()), Error::<Test>::CannotMutate);
     });
@@ -206,7 +207,7 @@ fn it_adds_file_when_submitter_is_owner() {
         let file = File {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file-nature".as_bytes().to_vec(),
-            submitter: LOC_OWNER1,
+            submitter: SupportedAccountId::Polkadot(LOC_OWNER1),
             size: FILE_SIZE,
         };
         assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()));
@@ -224,7 +225,7 @@ fn it_adds_file_when_submitter_is_requester() {
         let file = File {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file-nature".as_bytes().to_vec(),
-            submitter: LOC_REQUESTER_ID,
+            submitter: SupportedAccountId::Polkadot(LOC_REQUESTER_ID),
             size: FILE_SIZE,
         };
         assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()));
@@ -241,7 +242,7 @@ fn it_fails_adding_file_for_unauthorized_caller() {
         let file = File {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file-nature".as_bytes().to_vec(),
-            submitter: LOC_OWNER1,
+            submitter: SupportedAccountId::Polkadot(LOC_OWNER1),
             size: FILE_SIZE,
         };
         assert_err!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, file.clone()), Error::<Test>::Unauthorized);
@@ -256,7 +257,7 @@ fn it_fails_adding_file_when_insufficient_funds() {
         let file = File {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file-nature".as_bytes().to_vec(),
-            submitter: LOC_REQUESTER_ID,
+            submitter: SupportedAccountId::Polkadot(LOC_REQUESTER_ID),
             size: FILE_SIZE,
         };
         assert_err!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()), Error::<Test>::InsufficientFunds);
@@ -271,7 +272,7 @@ fn it_fails_adding_file_when_closed() {
         let file = File {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file-nature".as_bytes().to_vec(),
-            submitter: LOC_OWNER1,
+            submitter: SupportedAccountId::Polkadot(LOC_OWNER1),
             size: FILE_SIZE,
         };
         assert_err!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()), Error::<Test>::CannotMutate);
@@ -974,14 +975,14 @@ fn it_fails_adding_file_with_same_hash() {
         let file1 = File {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file-nature".as_bytes().to_vec(),
-            submitter: LOC_REQUESTER_ID,
+            submitter: SupportedAccountId::Polkadot(LOC_REQUESTER_ID),
             size: FILE_SIZE,
         };
         assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file1.clone()));
         let file2 = File {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file2-nature".as_bytes().to_vec(),
-            submitter: LOC_REQUESTER_ID,
+            submitter: SupportedAccountId::Polkadot(LOC_REQUESTER_ID),
             size: FILE_SIZE,
         };
         assert_err!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file2.clone()), Error::<Test>::DuplicateLocFile);
@@ -996,13 +997,13 @@ fn it_fails_adding_metadata_with_same_name() {
         let metadata1 = MetadataItem {
             name: "name".as_bytes().to_vec(),
             value: "value1".as_bytes().to_vec(),
-            submitter: LOC_REQUESTER_ID,
+            submitter: SupportedAccountId::Polkadot(LOC_REQUESTER_ID),
         };
         assert_ok!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata1.clone()));
         let metadata2 = MetadataItem {
             name: "name".as_bytes().to_vec(),
             value: "value2".as_bytes().to_vec(),
-            submitter: LOC_REQUESTER_ID,
+            submitter: SupportedAccountId::Polkadot(LOC_REQUESTER_ID),
         };
         assert_err!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata2.clone()), Error::<Test>::DuplicateLocMetadata);
     });
@@ -1033,13 +1034,13 @@ fn it_adds_several_metadata() {
         let metadata1 = MetadataItem {
             name: vec![1, 2, 3],
             value: vec![4, 5, 6],
-            submitter: LOC_OWNER1,
+            submitter: SupportedAccountId::Polkadot(LOC_OWNER1),
         };
         assert_ok!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata1.clone()));
         let metadata2 = MetadataItem {
             name: vec![1, 2, 4],
             value: vec![4, 5, 6],
-            submitter: LOC_OWNER1,
+            submitter: SupportedAccountId::Polkadot(LOC_OWNER1),
         };
         assert_ok!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata2.clone()));
         let loc = LogionLoc::loc(LOC_ID).unwrap();
@@ -1467,7 +1468,7 @@ fn it_adds_file_on_logion_identity_loc_when_submitter_is_issuer() {
         let file = File {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file-nature".as_bytes().to_vec(),
-            submitter: ISSUER_ID1,
+            submitter: SupportedAccountId::Polkadot(ISSUER_ID1),
             size: FILE_SIZE,
         };
         assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()));
@@ -1489,7 +1490,7 @@ fn it_adds_file_on_polkadot_transaction_loc_when_submitter_is_issuer() {
         let file = File {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file-nature".as_bytes().to_vec(),
-            submitter: ISSUER_ID1,
+            submitter: SupportedAccountId::Polkadot(ISSUER_ID1),
             size: FILE_SIZE,
         };
         assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()));
@@ -1504,7 +1505,7 @@ fn it_fails_adding_file_on_polkadot_transaction_loc_cannot_submit() {
         let file = File {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file-nature".as_bytes().to_vec(),
-            submitter: LOC_OWNER2,
+            submitter: SupportedAccountId::Polkadot(LOC_OWNER2),
             size: FILE_SIZE,
         };
         assert_err!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()), Error::<Test>::CannotSubmit);
@@ -1519,7 +1520,7 @@ fn it_adds_metadata_on_logion_identity_loc_for_when_submitter_is_issuer() {
         let metadata = MetadataItem {
             name: vec![1, 2, 3],
             value: vec![4, 5, 6],
-            submitter: ISSUER_ID1,
+            submitter: SupportedAccountId::Polkadot(ISSUER_ID1),
         };
         assert_ok!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.clone()));
     });
@@ -1532,7 +1533,7 @@ fn it_fails_adding_metadata_on_logion_identity_loc_cannot_submit() {
         let metadata = MetadataItem {
             name: vec![1, 2, 3],
             value: vec![4, 5, 6],
-            submitter: LOC_OWNER2,
+            submitter: SupportedAccountId::Polkadot(LOC_OWNER2),
         };
         assert_err!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.clone()), Error::<Test>::CannotSubmit);
     });
@@ -1546,7 +1547,7 @@ fn it_adds_metadata_on_polkadot_transaction_loc_when_submitter_is_issuer() {
         let metadata = MetadataItem {
             name: vec![1, 2, 3],
             value: vec![4, 5, 6],
-            submitter: ISSUER_ID1,
+            submitter: SupportedAccountId::Polkadot(ISSUER_ID1),
         };
         assert_ok!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.clone()));
     });
@@ -1559,7 +1560,7 @@ fn it_fails_adding_metadata_on_polkadot_transaction_loc_cannot_submit() {
         let metadata = MetadataItem {
             name: vec![1, 2, 3],
             value: vec![4, 5, 6],
-            submitter: LOC_OWNER2,
+            submitter: SupportedAccountId::Polkadot(LOC_OWNER2),
         };
         assert_err!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.clone()), Error::<Test>::CannotSubmit);
     });
@@ -1631,4 +1632,39 @@ fn check_no_fees(payer: AccountId) {
 
 fn get_free_balance(account_id: AccountId) -> Balance {
     <Test as Config>::Currency::free_balance(account_id)
+}
+
+#[test]
+fn it_adds_metadata_when_submitter_is_ethereum_requester() {
+    new_test_ext().execute_with(|| {
+        let requester = H160::from_str("0x900edc98db53508e6742723988b872dd08cd09c2").unwrap();
+        assert_ok!(LogionLoc::create_other_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, OtherAccountId::Ethereum(requester)));
+        let metadata = MetadataItem {
+            name: vec![1, 2, 3],
+            value: vec![4, 5, 6],
+            submitter: SupportedAccountId::Other(OtherAccountId::Ethereum(requester)),
+        };
+        assert_ok!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.clone()));
+        let loc = LogionLoc::loc(LOC_ID).unwrap();
+        assert_eq!(loc.metadata[0], metadata);
+    });
+}
+
+#[test]
+fn it_adds_file_when_submitter_is_ethereum_requester() {
+    new_test_ext().execute_with(|| {
+        let requester = H160::from_str("0x900edc98db53508e6742723988b872dd08cd09c2").unwrap();
+        assert_ok!(LogionLoc::create_other_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, OtherAccountId::Ethereum(requester)));
+        let file = File {
+            hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
+            nature: "test-file-nature".as_bytes().to_vec(),
+            submitter: SupportedAccountId::Other(OtherAccountId::Ethereum(requester)),
+            size: FILE_SIZE,
+        };
+        set_balance(LOC_OWNER1, BALANCE_OK_FOR_FILES);
+        assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()));
+        let loc = LogionLoc::loc(LOC_ID).unwrap();
+        assert_eq!(loc.files[0], file);
+        check_fees(1, file.size, LOC_OWNER1);
+    });
 }
