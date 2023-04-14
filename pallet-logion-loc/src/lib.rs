@@ -90,7 +90,7 @@ impl<AccountId, LocId, EthereumAddress> Default for Requester<AccountId, LocId, 
 pub enum SupportedAccountId<AccountId, EthereumAddress> {
     None, // Enables "null" account ID
     Polkadot(AccountId),
-    Ethereum(EthereumAddress)
+    Other(OtherAccountId<EthereumAddress>),
 }
 
 impl<AccountId, EthereumAddress> Default for SupportedAccountId<AccountId, EthereumAddress> {
@@ -1406,11 +1406,13 @@ pub mod pallet {
                         _ => false
                     }
                     || Self::verified_issuers_by_loc(loc_id, pokadot_submitter).is_some(),
-                SupportedAccountId::Ethereum(ethereum_submitter) => match &loc.requester {
-                    Requester::OtherAccount(other_requester) => match &other_requester {
-                        OtherAccountId::Ethereum(ethereum_requester) => *ethereum_submitter == *ethereum_requester,
+                SupportedAccountId::Other(other_submitter) => match &other_submitter {
+                    OtherAccountId::Ethereum(ethereum_submitter) => match &loc.requester {
+                        Requester::OtherAccount(other_requester) => match &other_requester {
+                            OtherAccountId::Ethereum(ethereum_requester) => *ethereum_submitter == *ethereum_requester,
+                        },
+                        _ => false,
                     },
-                    _ => false
                 }
                 _ => false,
             }

@@ -1642,7 +1642,7 @@ fn it_adds_metadata_when_submitter_is_ethereum_requester() {
         let metadata = MetadataItem {
             name: vec![1, 2, 3],
             value: vec![4, 5, 6],
-            submitter: SupportedAccountId::Ethereum(requester),
+            submitter: SupportedAccountId::Other(OtherAccountId::Ethereum(requester)),
         };
         assert_ok!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.clone()));
         let loc = LogionLoc::loc(LOC_ID).unwrap();
@@ -1658,7 +1658,7 @@ fn it_adds_file_when_submitter_is_ethereum_requester() {
         let file = File {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file-nature".as_bytes().to_vec(),
-            submitter: SupportedAccountId::Ethereum(requester),
+            submitter: SupportedAccountId::Other(OtherAccountId::Ethereum(requester)),
             size: FILE_SIZE,
         };
         set_balance(LOC_OWNER1, BALANCE_OK_FOR_FILES);
