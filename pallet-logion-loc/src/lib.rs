@@ -207,6 +207,15 @@ pub type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system:
 
 pub type NegativeImbalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId, >>::NegativeImbalance;
 
+#[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
+pub struct Sponsorship<AccountId, EthereumAddress> {
+    sponsor: AccountId,
+    sponsored_account: SupportedAccountId<AccountId, EthereumAddress>,
+    legal_officer: AccountId,
+    used: bool,
+}
+
+pub type SponsorshipOf<T> = Sponsorship<<T as frame_system::Config>::AccountId, <T as Config>::EthereumAddress>;
 
 pub mod weights;
 
@@ -297,6 +306,9 @@ pub mod pallet {
 
         /// Ethereum Address type
         type EthereumAddress: Member + Parameter + Default + Copy;
+
+        /// The identifier of a sponsorship
+        type SponsorshipId: Member + Parameter + Default + Copy + HasCompact;
     }
 
     #[pallet::pallet]
@@ -375,6 +387,11 @@ pub mod pallet {
         ()
     >;
 
+    /// Sponsorships indexed by ID
+    #[pallet::storage]
+    #[pallet::getter(fn sponsorship)]
+    pub type SponsorshipMap<T> = StorageMap<_, Blake2_128Concat, <T as Config>::SponsorshipId, SponsorshipOf<T>>;
+
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
@@ -387,7 +404,11 @@ pub mod pallet {
         /// Issued when an item was added to a collection. [locId, collectionItemId]
         ItemAdded(T::LocId, T::CollectionItemId),
         /// Issued when File Storage Fee is withdrawn. [payerAccountId, storageFee]
-        StorageFeeWithdrawn(T::AccountId, BalanceOf<T>)
+        StorageFeeWithdrawn(T::AccountId, BalanceOf<T>),
+        /// Issued when a sponsorship was successfully created [sponsorship_id, sponsor, sponsored_account]
+        SponsorshipCreated(T::SponsorshipId, T::AccountId, SupportedAccountId<T::AccountId, T::EthereumAddress>),
+        /// Issued when a sponsorship was successfully withdrawn [sponsorship_id, sponsor, sponsored_account]
+        SponsorshipWithdrawn(T::SponsorshipId, T::AccountId, SupportedAccountId<T::AccountId, T::EthereumAddress>),
     }
 
     #[pallet::error]
@@ -475,6 +496,8 @@ pub mod pallet {
         CannotSubmit,
         /// The requester has not enough funds to import file
         InsufficientFunds,
+        /// The sponsorship to be withdrawn has already been used
+        AlreadyUsed,
     }
 
     #[pallet::hooks]
@@ -1026,6 +1049,61 @@ pub mod pallet {
 
                 Self::deposit_event(Event::LocCreated(loc_id));
                 Ok(().into())
+            }
+        }
+
+        /// Creates a sponsorship.
+        #[pallet::call_index(19)]
+        #[pallet::weight(T::WeightInfo::sponsor())]
+        pub fn sponsor(
+            origin: OriginFor<T>,
+            #[pallet::compact] sponsorship_id: T::SponsorshipId,
+            sponsored_account: SupportedAccountId<T::AccountId, T::EthereumAddress>,
+            legal_officer: T::AccountId,
+        ) -> DispatchResultWithPostInfo {
+            let sponsor = ensure_signed(origin)?;
+
+            if !T::IsLegalOfficer::is_legal_officer(&legal_officer) {
+                Err(Error::<T>::Unauthorized)?
+            } else if <SponsorshipMap<T>>::contains_key(&sponsorship_id) {
+                Err(Error::<T>::AlreadyExists)?
+            } else {
+                let sponsorship = Sponsorship {
+                    sponsor: sponsor.clone(),
+                    sponsored_account: sponsored_account.clone(),
+                    legal_officer,
+                    used: false,
+                };
+                <SponsorshipMap<T>>::insert(sponsorship_id, sponsorship);
+
+                Self::deposit_event(Event::SponsorshipCreated(sponsorship_id, sponsor, sponsored_account));
+                Ok(().into())
+            }
+        }
+
+        /// Withdraws an unused sponsorship.
+        #[pallet::call_index(20)]
+        #[pallet::weight(T::WeightInfo::sponsor())]
+        pub fn withdraw_sponsorship(
+            origin: OriginFor<T>,
+            #[pallet::compact] sponsorship_id: T::SponsorshipId,
+        ) -> DispatchResultWithPostInfo {
+            let sponsor = ensure_signed(origin)?;
+
+            let maybe_sponsorship = <SponsorshipMap<T>>::get(&sponsorship_id);
+            if maybe_sponsorship.is_none() {
+                Err(Error::<T>::NotFound)?
+            } else {
+                let sponsorship = maybe_sponsorship.unwrap();
+                if sponsorship.used {
+                    Err(Error::<T>::AlreadyUsed)?
+                } else {
+                    let sponsored_account = sponsorship.sponsored_account;
+                    <SponsorshipMap<T>>::remove(&sponsorship_id);
+
+                    Self::deposit_event(Event::SponsorshipWithdrawn(sponsorship_id, sponsor, sponsored_account));
+                    Ok(().into())
+                }
             }
         }
     }

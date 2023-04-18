@@ -12,6 +12,7 @@ type Block = frame_system::mocking::MockBlock<Test>;
 pub type AccountId = u64;
 pub type Balance = u128;
 pub type EthereumAddress = H160;
+pub type SponsorshipId = u32;
 
 construct_runtime!(
     pub struct Test where
@@ -81,6 +82,7 @@ pub const LOC_REQUESTER: RequesterOf<Test> = RequesterOf::<Test>::Account(LOC_RE
 pub const LOGION_IDENTITY_LOC_ID: u32 = 4;
 pub const ISSUER_ID1: u64 = 5;
 pub const ISSUER_ID2: u64 = 6;
+pub const SPONSOR_ID: u64 = 7;
 
 pub struct LoAuthorityListMock;
 impl EnsureOrigin<RuntimeOrigin> for LoAuthorityListMock {
@@ -170,7 +172,8 @@ impl pallet_loc::Config for Test {
     type FileStorageEntryFee = FileStorageEntryFee;
     type FileStorageFeeDistributor = RewardDistributorImpl;
     type FileStorageFeeDistributionKey = RewardDistributionKey;
-    type EthereumAddress = H160;
+    type EthereumAddress = EthereumAddress;
+    type SponsorshipId = SponsorshipId;
 }
 
 // Build genesis storage according to the mock runtime.
