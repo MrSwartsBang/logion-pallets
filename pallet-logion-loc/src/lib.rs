@@ -501,7 +501,7 @@ pub mod pallet {
 
     impl Default for StorageVersion {
         fn default() -> StorageVersion {
-            return StorageVersion::V9TermsAndConditions;
+            return StorageVersion::V10AddLocFileSize;
         }
     }
 

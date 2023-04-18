@@ -24,6 +24,7 @@ pub mod v11 {
         hash: Hash,
         nature: Vec<u8>,
         submitter: AccountId,
+        size: u32,
     }
 
     type FileV10Of<T> = FileV10<<T as pallet::Config>::Hash, <T as frame_system::Config>::AccountId>;
@@ -69,7 +70,7 @@ pub mod v11 {
                                 hash: file.hash,
                                 nature: file.nature.clone(),
                                 submitter: SupportedAccountId::Polkadot(file.submitter.clone()),
-                                size: 0
+                                size: file.size,
                             })
                             .collect();
                         let metadata: Vec<MetadataItem<<T as frame_system::Config>::AccountId, T::EthereumAddress>> = loc.metadata
