@@ -1668,3 +1668,35 @@ fn it_adds_file_when_submitter_is_ethereum_requester() {
         check_fees(1, file.size, LOC_OWNER1);
     });
 }
+
+#[test]
+fn it_creates_sponsorship() {
+    new_test_ext().execute_with(|| {
+        let sponsorship_id = 1;
+        let beneficiary = H160::from_str("0x900edc98db53508e6742723988b872dd08cd09c2").unwrap();
+        let sponsored_account = SupportedAccountId::Other(OtherAccountId::Ethereum(beneficiary));
+
+        assert_ok!(LogionLoc::sponsor(RuntimeOrigin::signed(SPONSOR_ID), sponsorship_id, sponsored_account, LOC_OWNER1));
+
+        let sponsorship = LogionLoc::sponsorship(sponsorship_id).unwrap();
+        assert_eq!(sponsorship.legal_officer, LOC_OWNER1);
+        assert_eq!(sponsorship.sponsor, SPONSOR_ID);
+        assert_eq!(sponsorship.sponsored_account, sponsored_account);
+        assert_eq!(sponsorship.used, false);
+    });
+}
+
+#[test]
+fn it_withdraws_unused_sponsorship() {
+    new_test_ext().execute_with(|| {
+        let sponsorship_id = 1;
+        let beneficiary = H160::from_str("0x900edc98db53508e6742723988b872dd08cd09c2").unwrap();
+        let sponsored_account = SupportedAccountId::Other(OtherAccountId::Ethereum(beneficiary));
+        assert_ok!(LogionLoc::sponsor(RuntimeOrigin::signed(SPONSOR_ID), sponsorship_id, sponsored_account, LOC_OWNER1));
+        assert!(LogionLoc::sponsorship(sponsorship_id).is_some());
+
+        assert_ok!(LogionLoc::withdraw_sponsorship(RuntimeOrigin::signed(SPONSOR_ID), sponsorship_id));
+
+        assert!(LogionLoc::sponsorship(sponsorship_id).is_none());
+    });
+}
