@@ -103,7 +103,7 @@ impl<AccountId, EthereumAddress> Default for SupportedAccountId<AccountId, Ether
 pub type CollectionSize = u32;
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-pub struct LegalOfficerCase<AccountId, Hash, LocId, BlockNumber, EthereumAddress> {
+pub struct LegalOfficerCase<AccountId, Hash, LocId, BlockNumber, EthereumAddress, SponsorshipId> {
     owner: AccountId,
     requester: Requester<AccountId, LocId, EthereumAddress>,
     metadata: Vec<MetadataItem<AccountId, EthereumAddress>>,
@@ -117,6 +117,7 @@ pub struct LegalOfficerCase<AccountId, Hash, LocId, BlockNumber, EthereumAddress
     collection_max_size: Option<CollectionSize>,
     collection_can_upload: bool,
     seal: Option<Hash>,
+    sponsorship_id: Option<SponsorshipId>,
 }
 
 pub type LegalOfficerCaseOf<T> = LegalOfficerCase<
@@ -125,6 +126,7 @@ pub type LegalOfficerCaseOf<T> = LegalOfficerCase<
     <T as pallet::Config>::LocId,
     <T as frame_system::Config>::BlockNumber,
     <T as pallet::Config>::EthereumAddress,
+    <T as pallet::Config>::SponsorshipId,
 >;
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
@@ -208,14 +210,18 @@ pub type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system:
 pub type NegativeImbalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId, >>::NegativeImbalance;
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-pub struct Sponsorship<AccountId, EthereumAddress> {
+pub struct Sponsorship<AccountId, EthereumAddress, LocId> {
     sponsor: AccountId,
     sponsored_account: SupportedAccountId<AccountId, EthereumAddress>,
     legal_officer: AccountId,
-    used: bool,
+    loc_id: Option<LocId>,
 }
 
-pub type SponsorshipOf<T> = Sponsorship<<T as frame_system::Config>::AccountId, <T as Config>::EthereumAddress>;
+pub type SponsorshipOf<T> = Sponsorship<
+    <T as frame_system::Config>::AccountId,
+    <T as Config>::EthereumAddress,
+    <T as Config>::LocId,
+>;
 
 pub mod weights;
 
@@ -498,6 +504,8 @@ pub mod pallet {
         InsufficientFunds,
         /// The sponsorship to be withdrawn has already been used
         AlreadyUsed,
+        /// The sponsorship cannot be used for creating the new LOC
+        CannotLinkToSponsorship,
     }
 
     #[pallet::hooks]
@@ -520,11 +528,12 @@ pub mod pallet {
         V9TermsAndConditions,
         V10AddLocFileSize,
         V11EnableEthereumSubmitter,
+        V12Sponsorship,
     }
 
     impl Default for StorageVersion {
         fn default() -> StorageVersion {
-            return StorageVersion::V10AddLocFileSize;
+            return StorageVersion::V11EnableEthereumSubmitter;
         }
     }
 
@@ -550,7 +559,7 @@ pub mod pallet {
                 Err(Error::<T>::AlreadyExists)?
             } else {
                 let requester = RequesterOf::<T>::Account(requester_account_id.clone());
-                let loc = Self::build_open_loc(&who, &requester, LocType::Identity);
+                let loc = Self::build_open_loc(&who, &requester, LocType::Identity, None);
 
                 <LocMap<T>>::insert(loc_id, loc);
                 Self::link_with_account(&requester_account_id, &loc_id);
@@ -573,7 +582,7 @@ pub mod pallet {
                 Err(Error::<T>::AlreadyExists)?
             } else {
                 let requester = RequesterOf::<T>::None;
-                let loc = Self::build_open_loc(&who, &requester, LocType::Identity);
+                let loc = Self::build_open_loc(&who, &requester, LocType::Identity, None);
                 <LocMap<T>>::insert(loc_id, loc);
 
                 Self::deposit_event(Event::LocCreated(loc_id));
@@ -595,7 +604,7 @@ pub mod pallet {
                 Err(Error::<T>::AlreadyExists)?
             } else {
                 let requester = RequesterOf::<T>::Account(requester_account_id.clone());
-                let loc = Self::build_open_loc(&who, &requester, LocType::Transaction);
+                let loc = Self::build_open_loc(&who, &requester, LocType::Transaction, None);
 
                 <LocMap<T>>::insert(loc_id, loc);
                 Self::link_with_account(&requester_account_id, &loc_id);
@@ -626,7 +635,7 @@ pub mod pallet {
                             Err(Error::<T>::UnexpectedRequester)?
                         } else {
                             let requester = RequesterOf::<T>::Loc(requester_loc_id.clone());
-                            let new_loc = Self::build_open_loc(&who, &requester, LocType::Transaction);
+                            let new_loc = Self::build_open_loc(&who, &requester, LocType::Transaction, None);
                             <LocMap<T>>::insert(loc_id, new_loc);
                             Self::link_with_identity_loc(&requester_loc_id, &loc_id);
                         },
@@ -746,10 +755,16 @@ pub mod pallet {
                     if loc.files.iter().find(|item| item.hash == file.hash).is_some() {
                         Err(Error::<T>::DuplicateLocFile)?
                     }
-                    let fee_payer = match loc.requester {
-                        Account(requester_account) => requester_account,
-                        _ => loc.owner
-                    };
+                    let fee_payer;
+                    if loc.sponsorship_id.is_some() {
+                        let sponsorship = <SponsorshipMap<T>>::get(loc.sponsorship_id.unwrap()).unwrap();
+                        fee_payer = sponsorship.sponsor;
+                    } else {
+                        fee_payer = match loc.requester {
+                            Account(requester_account) => requester_account,
+                            _ => loc.owner
+                        };
+                    }
                     Self::apply_file_storage_fee(fee_payer, 1, file.size)?;
                     <LocMap<T>>::mutate(loc_id, |loc| {
                         let mutable_loc = loc.as_mut().unwrap();
@@ -1035,17 +1050,21 @@ pub mod pallet {
             origin: OriginFor<T>,
             #[pallet::compact] loc_id: T::LocId,
             requester_account_id: OtherAccountId<T::EthereumAddress>,
+            #[pallet::compact] sponsorship_id: T::SponsorshipId,
         ) -> DispatchResultWithPostInfo {
             let who = T::IsLegalOfficer::ensure_origin(origin.clone())?;
 
             if <LocMap<T>>::contains_key(&loc_id) {
                 Err(Error::<T>::AlreadyExists)?
+            } else if !Self::can_link_to_sponsorship(&sponsorship_id, &who, &SupportedAccountId::Other(requester_account_id)) {
+                Err(Error::<T>::CannotLinkToSponsorship)?
             } else {
                 let requester = RequesterOf::<T>::OtherAccount(requester_account_id.clone());
-                let loc = Self::build_open_loc(&who, &requester, LocType::Identity);
+                let loc = Self::build_open_loc(&who, &requester, LocType::Identity, Some(sponsorship_id));
 
                 <LocMap<T>>::insert(loc_id, loc);
                 Self::link_with_other_account(&requester_account_id, &loc_id);
+                Self::link_sponsorship_to_loc(&sponsorship_id, &loc_id);
 
                 Self::deposit_event(Event::LocCreated(loc_id));
                 Ok(().into())
@@ -1072,7 +1091,7 @@ pub mod pallet {
                     sponsor: sponsor.clone(),
                     sponsored_account: sponsored_account.clone(),
                     legal_officer,
-                    used: false,
+                    loc_id: None,
                 };
                 <SponsorshipMap<T>>::insert(sponsorship_id, sponsorship);
 
@@ -1095,7 +1114,7 @@ pub mod pallet {
                 Err(Error::<T>::NotFound)?
             } else {
                 let sponsorship = maybe_sponsorship.unwrap();
-                if sponsorship.used {
+                if sponsorship.loc_id.is_some() {
                     Err(Error::<T>::AlreadyUsed)?
                 } else {
                     let sponsored_account = sponsorship.sponsored_account;
@@ -1280,6 +1299,7 @@ pub mod pallet {
             who: &T::AccountId,
             requester: &RequesterOf<T>,
             loc_type: LocType,
+            sponsorship_id: Option<T::SponsorshipId>,
         ) -> LegalOfficerCaseOf<T> {
             LegalOfficerCaseOf::<T> {
                 owner: who.clone(),
@@ -1291,10 +1311,11 @@ pub mod pallet {
                 links: Vec::new(),
                 void_info: None,
                 replacer_of: None,
-                collection_last_block_submission: Option::None,
-                collection_max_size: Option::None,
+                collection_last_block_submission: None,
+                collection_max_size: None,
                 collection_can_upload: false,
-                seal: Option::None,
+                seal: None,
+                sponsorship_id: sponsorship_id.clone(),
             }
         }
 
@@ -1318,7 +1339,8 @@ pub mod pallet {
                 collection_last_block_submission: collection_last_block_submission.clone(),
                 collection_max_size: collection_max_size.clone(),
                 collection_can_upload,
-                seal: Option::None,
+                seal: None,
+                sponsorship_id: None,
             }
         }
 
@@ -1510,6 +1532,29 @@ pub mod pallet {
             let entry_fee: BalanceOf<T> = T::FileStorageEntryFee::get();
             byte_fee.saturating_mul(tot_size.into())
                 .saturating_add(entry_fee.saturating_mul(num_of_entries.into()))
+        }
+
+        fn can_link_to_sponsorship(
+            sponsorship_id: &T::SponsorshipId,
+            expected_owner: &T::AccountId,
+            expected_sponsored_account: &SupportedAccountId<T::AccountId, T::EthereumAddress>
+        ) -> bool {
+            let maybe_sponsorship = Self::sponsorship(sponsorship_id);
+            if maybe_sponsorship.is_some() {
+                let sponsorship = maybe_sponsorship.unwrap();
+                sponsorship.legal_officer == *expected_owner
+                    && sponsorship.sponsored_account == *expected_sponsored_account
+                    && sponsorship.loc_id.is_none()
+            } else {
+                false
+            }
+        }
+
+        fn link_sponsorship_to_loc(sponsorship_id: &T::SponsorshipId, loc_id: &T::LocId) -> () {
+            <SponsorshipMap<T>>::mutate(sponsorship_id, |maybe_sponsorship| {
+                let sponsorship = maybe_sponsorship.as_mut().unwrap();
+                sponsorship.loc_id = Some(*loc_id);
+            });
         }
     }
 }

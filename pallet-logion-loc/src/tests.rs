@@ -2,7 +2,6 @@ use core::str::FromStr;
 use frame_support::{assert_err, assert_ok};
 use frame_support::error::BadOrigin;
 use frame_support::traits::Len;
-use sp_core::bytes::from_hex;
 use sp_core::{H256, H160};
 use sp_runtime::traits::BlakeTwo256;
 use sp_runtime::traits::Hash;
@@ -39,7 +38,8 @@ fn it_creates_loc() {
             collection_last_block_submission: Option::None,
             collection_max_size: Option::None,
             collection_can_upload: false,
-            seal: Option::None,
+            seal: None,
+            sponsorship_id: None,
         }));
     });
 }
@@ -217,6 +217,25 @@ fn it_adds_file_when_submitter_is_owner() {
     });
 }
 
+fn set_balance(account_id: AccountId, amount: Balance) {
+    assert_ok!(Balances::set_balance(RuntimeOrigin::root(), account_id, amount, 0));
+}
+
+fn check_fees(num_of_files: u32, tot_size: u32, payer: AccountId) {
+    // The following tests assumes that inclusion fees are disabled
+    let expected_fees: Balance = (num_of_files * FileStorageEntryFee::get() + tot_size * FileStorageByteFee::get()) as Balance;
+    let credited_fees: Balance = get_free_balance(RESERVE_ACCOUNT) +
+        get_free_balance(STAKERS_ACCOUNT) +
+        get_free_balance(COLLATORS_ACCOUNT);
+    assert_eq!(credited_fees, expected_fees);
+    let actual_fees = BALANCE_OK_FOR_FILES - get_free_balance(payer);
+    assert_eq!(actual_fees, expected_fees);
+    System::assert_has_event(RuntimeEvent::LogionLoc(crate::Event::StorageFeeWithdrawn {
+        0: payer,
+        1: expected_fees,
+    }));
+}
+
 #[test]
 fn it_adds_file_when_submitter_is_requester() {
     new_test_ext().execute_with(|| {
@@ -263,6 +282,18 @@ fn it_fails_adding_file_when_insufficient_funds() {
         assert_err!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()), Error::<Test>::InsufficientFunds);
         check_no_fees(LOC_REQUESTER_ID);
     });
+}
+
+fn check_no_fees(payer: AccountId) {
+    let credited_fees: Balance = get_free_balance(RESERVE_ACCOUNT) +
+        get_free_balance(STAKERS_ACCOUNT) +
+        get_free_balance(COLLATORS_ACCOUNT);
+    assert_eq!(credited_fees, 0);
+    assert_eq!(get_free_balance(payer), INSUFFICIENT_BALANCE);
+}
+
+fn get_free_balance(account_id: AccountId) -> Balance {
+    <Test as Config>::Currency::free_balance(account_id)
 }
 
 #[test]
@@ -528,7 +559,8 @@ fn it_creates_collection_loc() {
             collection_last_block_submission: Option::None,
             collection_max_size: Option::Some(10),
             collection_can_upload: false,
-            seal: Option::None,
+            seal: None,
+            sponsorship_id: None,
         }));
     });
 }
@@ -1567,109 +1599,6 @@ fn it_fails_adding_metadata_on_polkadot_transaction_loc_cannot_submit() {
 }
 
 #[test]
-fn it_creates_ethereum_identity_loc() {
-    new_test_ext().execute_with(|| {
-        let ethereum_address = from_hex("0x590E9c11b1c2f20210b9b84dc2417B4A7955d4e6").unwrap();
-        let requester_account_id = OtherAccountId::Ethereum(EthereumAddress::from_slice(ethereum_address.as_slice()));
-        assert_ok!(LogionLoc::create_other_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, requester_account_id.clone()));
-        assert_eq!(LogionLoc::loc(LOC_ID), Some(LegalOfficerCase {
-            owner: LOC_OWNER1,
-            requester: OtherAccount(requester_account_id.clone()),
-            metadata: vec![],
-            files: vec![],
-            closed: false,
-            loc_type: LocType::Identity,
-            links: vec![],
-            void_info: None,
-            replacer_of: None,
-            collection_last_block_submission: Option::None,
-            collection_max_size: Option::None,
-            collection_can_upload: false,
-            seal: Option::None,
-        }));
-        assert_eq!(LogionLoc::other_account_locs(requester_account_id), Some(vec![LOC_ID]));
-        System::assert_has_event(RuntimeEvent::LogionLoc(crate::Event::LocCreated { 0: LOC_ID }));
-    });
-}
-
-
-#[test]
-fn it_fails_creating_ethereum_identity_loc_if_duplicate_loc_id() {
-    new_test_ext().execute_with(|| {
-        let ethereum_address = from_hex("0x590E9c11b1c2f20210b9b84dc2417B4A7955d4e6").unwrap();
-        let requester_address = OtherAccountId::Ethereum(EthereumAddress::from_slice(ethereum_address.as_slice()));
-        assert_ok!(LogionLoc::create_other_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, requester_address.clone()));
-        assert_err!(LogionLoc::create_other_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, requester_address.clone()), Error::<Test>::AlreadyExists);
-    });
-}
-
-fn set_balance(account_id: AccountId, amount: Balance) {
-    assert_ok!(Balances::set_balance(RuntimeOrigin::root(), account_id, amount, 0));
-}
-
-fn check_fees(num_of_files: u32, tot_size: u32, payer: AccountId) {
-    // The following tests assumes that inclusion fees are disabled
-    let expected_fees: Balance = (num_of_files * FileStorageEntryFee::get() + tot_size * FileStorageByteFee::get()) as Balance;
-    let credited_fees: Balance = get_free_balance(RESERVE_ACCOUNT) +
-        get_free_balance(STAKERS_ACCOUNT) +
-        get_free_balance(COLLATORS_ACCOUNT);
-    assert_eq!(credited_fees, expected_fees);
-    let actual_fees = BALANCE_OK_FOR_FILES - get_free_balance(payer);
-    assert_eq!(actual_fees, expected_fees);
-    System::assert_has_event(RuntimeEvent::LogionLoc(crate::Event::StorageFeeWithdrawn {
-        0: payer,
-        1: expected_fees,
-    }));
-}
-
-fn check_no_fees(payer: AccountId) {
-    let credited_fees: Balance = get_free_balance(RESERVE_ACCOUNT) +
-        get_free_balance(STAKERS_ACCOUNT) +
-        get_free_balance(COLLATORS_ACCOUNT);
-    assert_eq!(credited_fees, 0);
-    assert_eq!(get_free_balance(payer), INSUFFICIENT_BALANCE);
-}
-
-fn get_free_balance(account_id: AccountId) -> Balance {
-    <Test as Config>::Currency::free_balance(account_id)
-}
-
-#[test]
-fn it_adds_metadata_when_submitter_is_ethereum_requester() {
-    new_test_ext().execute_with(|| {
-        let requester = H160::from_str("0x900edc98db53508e6742723988b872dd08cd09c2").unwrap();
-        assert_ok!(LogionLoc::create_other_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, OtherAccountId::Ethereum(requester)));
-        let metadata = MetadataItem {
-            name: vec![1, 2, 3],
-            value: vec![4, 5, 6],
-            submitter: SupportedAccountId::Other(OtherAccountId::Ethereum(requester)),
-        };
-        assert_ok!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.clone()));
-        let loc = LogionLoc::loc(LOC_ID).unwrap();
-        assert_eq!(loc.metadata[0], metadata);
-    });
-}
-
-#[test]
-fn it_adds_file_when_submitter_is_ethereum_requester() {
-    new_test_ext().execute_with(|| {
-        let requester = H160::from_str("0x900edc98db53508e6742723988b872dd08cd09c2").unwrap();
-        assert_ok!(LogionLoc::create_other_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, OtherAccountId::Ethereum(requester)));
-        let file = File {
-            hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
-            nature: "test-file-nature".as_bytes().to_vec(),
-            submitter: SupportedAccountId::Other(OtherAccountId::Ethereum(requester)),
-            size: FILE_SIZE,
-        };
-        set_balance(LOC_OWNER1, BALANCE_OK_FOR_FILES);
-        assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()));
-        let loc = LogionLoc::loc(LOC_ID).unwrap();
-        assert_eq!(loc.files[0], file);
-        check_fees(1, file.size, LOC_OWNER1);
-    });
-}
-
-#[test]
 fn it_creates_sponsorship() {
     new_test_ext().execute_with(|| {
         let sponsorship_id = 1;
@@ -1682,7 +1611,19 @@ fn it_creates_sponsorship() {
         assert_eq!(sponsorship.legal_officer, LOC_OWNER1);
         assert_eq!(sponsorship.sponsor, SPONSOR_ID);
         assert_eq!(sponsorship.sponsored_account, sponsored_account);
-        assert_eq!(sponsorship.used, false);
+        assert_eq!(sponsorship.loc_id, None);
+    });
+}
+
+#[test]
+fn it_fails_creating_sponsorship_with_duplicate_id() {
+    new_test_ext().execute_with(|| {
+        let sponsorship_id = 1;
+        let beneficiary = H160::from_str("0x900edc98db53508e6742723988b872dd08cd09c2").unwrap();
+        let sponsored_account = SupportedAccountId::Other(OtherAccountId::Ethereum(beneficiary));
+
+        assert_ok!(LogionLoc::sponsor(RuntimeOrigin::signed(SPONSOR_ID), sponsorship_id, sponsored_account, LOC_OWNER1));
+        assert_err!(LogionLoc::sponsor(RuntimeOrigin::signed(SPONSOR_ID), sponsorship_id, sponsored_account, LOC_OWNER1), Error::<Test>::AlreadyExists);
     });
 }
 
@@ -1698,5 +1639,118 @@ fn it_withdraws_unused_sponsorship() {
         assert_ok!(LogionLoc::withdraw_sponsorship(RuntimeOrigin::signed(SPONSOR_ID), sponsorship_id));
 
         assert!(LogionLoc::sponsorship(sponsorship_id).is_none());
+    });
+}
+
+#[test]
+fn it_creates_ethereum_identity_loc() {
+    new_test_ext().execute_with(|| {
+        let ethereum_address = H160::from_str("0x590E9c11b1c2f20210b9b84dc2417B4A7955d4e6").unwrap();
+        let requester_account_id = OtherAccountId::Ethereum(ethereum_address);
+        let sponsorship_id = 1;
+        let sponsored_account = SupportedAccountId::Other(OtherAccountId::Ethereum(ethereum_address));
+        assert_ok!(LogionLoc::sponsor(RuntimeOrigin::signed(SPONSOR_ID), sponsorship_id, sponsored_account, LOC_OWNER1));
+        assert_ok!(LogionLoc::create_other_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, requester_account_id.clone(), sponsorship_id));
+        assert_eq!(LogionLoc::loc(LOC_ID), Some(LegalOfficerCase {
+            owner: LOC_OWNER1,
+            requester: OtherAccount(requester_account_id.clone()),
+            metadata: vec![],
+            files: vec![],
+            closed: false,
+            loc_type: LocType::Identity,
+            links: vec![],
+            void_info: None,
+            replacer_of: None,
+            collection_last_block_submission: Option::None,
+            collection_max_size: Option::None,
+            collection_can_upload: false,
+            seal: Option::None,
+            sponsorship_id: Some(sponsorship_id),
+        }));
+        assert_eq!(LogionLoc::other_account_locs(requester_account_id), Some(vec![LOC_ID]));
+        assert_eq!(LogionLoc::sponsorship(sponsorship_id).unwrap().loc_id, Some(LOC_ID));
+        System::assert_has_event(RuntimeEvent::LogionLoc(crate::Event::LocCreated { 0: LOC_ID }));
+    });
+}
+
+#[test]
+fn it_fails_creating_ethereum_identity_loc_if_duplicate_loc_id() {
+    new_test_ext().execute_with(|| {
+        let ethereum_address = H160::from_str("0x590E9c11b1c2f20210b9b84dc2417B4A7955d4e6").unwrap();
+        let requester_address = OtherAccountId::Ethereum(ethereum_address);
+        let sponsorship_id = 1;
+        let sponsored_account: SupportedAccountId<AccountId, H160> = SupportedAccountId::Other(requester_address);
+        assert_ok!(LogionLoc::sponsor(RuntimeOrigin::signed(SPONSOR_ID), sponsorship_id, sponsored_account, LOC_OWNER1));
+        assert_ok!(LogionLoc::create_other_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, requester_address.clone(), sponsorship_id));
+        assert_err!(LogionLoc::create_other_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, requester_address.clone(), sponsorship_id), Error::<Test>::AlreadyExists);
+    });
+}
+
+#[test]
+fn it_fails_creating_several_ethereum_identity_loc_with_single_sponsorship() {
+    new_test_ext().execute_with(|| {
+        let ethereum_address = H160::from_str("0x590E9c11b1c2f20210b9b84dc2417B4A7955d4e6").unwrap();
+        let requester_address = OtherAccountId::Ethereum(ethereum_address);
+        let sponsorship_id = 1;
+        let sponsored_account: SupportedAccountId<AccountId, H160> = SupportedAccountId::Other(requester_address);
+        assert_ok!(LogionLoc::sponsor(RuntimeOrigin::signed(SPONSOR_ID), sponsorship_id, sponsored_account, LOC_OWNER1));
+        assert_ok!(LogionLoc::create_other_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, requester_address.clone(), sponsorship_id));
+        assert_err!(LogionLoc::create_other_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), OTHER_LOC_ID, requester_address.clone(), sponsorship_id), Error::<Test>::CannotLinkToSponsorship);
+    });
+}
+
+#[test]
+fn it_fails_withdrawing_used_sponsorship() {
+    new_test_ext().execute_with(|| {
+        let sponsorship_id = 1;
+        let beneficiary = H160::from_str("0x900edc98db53508e6742723988b872dd08cd09c2").unwrap();
+        let requester_address = OtherAccountId::Ethereum(beneficiary);
+        let sponsored_account = SupportedAccountId::Other(OtherAccountId::Ethereum(beneficiary));
+        assert_ok!(LogionLoc::sponsor(RuntimeOrigin::signed(SPONSOR_ID), sponsorship_id, sponsored_account, LOC_OWNER1));
+        assert_ok!(LogionLoc::create_other_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, requester_address, sponsorship_id));
+
+        assert_err!(LogionLoc::withdraw_sponsorship(RuntimeOrigin::signed(SPONSOR_ID), sponsorship_id), Error::<Test>::AlreadyUsed);
+    });
+}
+
+#[test]
+fn it_adds_metadata_when_submitter_is_ethereum_requester() {
+    new_test_ext().execute_with(|| {
+        let ethereum_address = H160::from_str("0x590E9c11b1c2f20210b9b84dc2417B4A7955d4e6").unwrap();
+        let requester_address = OtherAccountId::Ethereum(ethereum_address);
+        let sponsorship_id = 1;
+        let sponsored_account = SupportedAccountId::Other(requester_address);
+        assert_ok!(LogionLoc::sponsor(RuntimeOrigin::signed(SPONSOR_ID), sponsorship_id, sponsored_account, LOC_OWNER1));
+        assert_ok!(LogionLoc::create_other_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, requester_address, sponsorship_id));
+        let metadata = MetadataItem {
+            name: vec![1, 2, 3],
+            value: vec![4, 5, 6],
+            submitter: sponsored_account,
+        };
+        assert_ok!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.clone()));
+        let loc = LogionLoc::loc(LOC_ID).unwrap();
+        assert_eq!(loc.metadata[0], metadata);
+    });
+}
+
+#[test]
+fn it_adds_file_when_submitter_is_ethereum_requester() {
+    new_test_ext().execute_with(|| {
+        let requester = H160::from_str("0x900edc98db53508e6742723988b872dd08cd09c2").unwrap();
+        let sponsorship_id = 1;
+        let sponsored_account = SupportedAccountId::Other(OtherAccountId::Ethereum(requester));
+        assert_ok!(LogionLoc::sponsor(RuntimeOrigin::signed(SPONSOR_ID), sponsorship_id, sponsored_account, LOC_OWNER1));
+        assert_ok!(LogionLoc::create_other_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, OtherAccountId::Ethereum(requester), sponsorship_id));
+        let file = File {
+            hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
+            nature: "test-file-nature".as_bytes().to_vec(),
+            submitter: SupportedAccountId::Other(OtherAccountId::Ethereum(requester)),
+            size: FILE_SIZE,
+        };
+        set_balance(SPONSOR_ID, BALANCE_OK_FOR_FILES);
+        assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()));
+        let loc = LogionLoc::loc(LOC_ID).unwrap();
+        assert_eq!(loc.files[0], file);
+        check_fees(1, file.size, SPONSOR_ID);
     });
 }
