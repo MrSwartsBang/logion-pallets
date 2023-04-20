@@ -6,35 +6,16 @@ use frame_support::traits::OnRuntimeUpgrade;
 
 use crate::{Config, LegalOfficerCaseOf, PalletStorageVersion, pallet::StorageVersion};
 
-pub mod v11 {
+pub mod v12 {
     use super::*;
     use crate::*;
 
     #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-    pub struct MetadataItemV10<AccountId> {
-        name: Vec<u8>,
-        value: Vec<u8>,
-        submitter: AccountId,
-    }
-
-    type MetadataItemV10Of<T> = MetadataItemV10<<T as frame_system::Config>::AccountId>;
-
-    #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug)]
-    struct FileV10<Hash, AccountId> {
-        hash: Hash,
-        nature: Vec<u8>,
-        submitter: AccountId,
-        size: u32,
-    }
-
-    type FileV10Of<T> = FileV10<<T as pallet::Config>::Hash, <T as frame_system::Config>::AccountId>;
-
-    #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-    pub struct LegalOfficerCaseV10<AccountId, Hash, LocId, BlockNumber, EthereumAddress> {
+    pub struct LegalOfficerCaseV11<AccountId, Hash, LocId, BlockNumber, EthereumAddress> {
         owner: AccountId,
         requester: Requester<AccountId, LocId, EthereumAddress>,
-        metadata: Vec<MetadataItemV10<AccountId>>,
-        files: Vec<FileV10<Hash, AccountId>>,
+        metadata: Vec<MetadataItem<AccountId, EthereumAddress>>,
+        files: Vec<File<Hash, AccountId, EthereumAddress>>,
         closed: bool,
         loc_type: LocType,
         links: Vec<LocLink<LocId>>,
@@ -46,7 +27,7 @@ pub mod v11 {
         seal: Option<Hash>,
     }
 
-    type LegalOfficerCaseV10Of<T> = LegalOfficerCaseV10<
+    type LegalOfficerCaseV11Of<T> = LegalOfficerCaseV11<
         <T as frame_system::Config>::AccountId,
         <T as pallet::Config>::Hash,
         <T as pallet::Config>::LocId,
@@ -54,38 +35,21 @@ pub mod v11 {
         <T as pallet::Config>::EthereumAddress,
     >;
 
-    pub struct EnableEthereumSubmitter<T>(sp_std::marker::PhantomData<T>);
+    pub struct AddSponsorship<T>(sp_std::marker::PhantomData<T>);
 
-    impl<T: Config> OnRuntimeUpgrade for EnableEthereumSubmitter<T> {
+    impl<T: Config> OnRuntimeUpgrade for AddSponsorship<T> {
         fn on_runtime_upgrade() -> Weight {
             super::do_storage_upgrade::<T, _>(
-                StorageVersion::V10AddLocFileSize,
                 StorageVersion::V11EnableEthereumSubmitter,
-                "EnableEthereumSubmitter",
+                StorageVersion::V12Sponsorship,
+                "AddSponsorship",
                 || {
-                    LocMap::<T>::translate_values(|loc: LegalOfficerCaseV10Of<T>| {
-                        let files: Vec<File<<T as pallet::Config>::Hash, <T as frame_system::Config>::AccountId, T::EthereumAddress>> = loc.files
-                            .iter()
-                            .map(|file: &FileV10Of<T>| File {
-                                hash: file.hash,
-                                nature: file.nature.clone(),
-                                submitter: SupportedAccountId::Polkadot(file.submitter.clone()),
-                                size: file.size,
-                            })
-                            .collect();
-                        let metadata: Vec<MetadataItem<<T as frame_system::Config>::AccountId, T::EthereumAddress>> = loc.metadata
-                            .iter()
-                            .map(|item: &MetadataItemV10Of<T>| MetadataItem {
-                                name: item.name.clone(),
-                                value: item.value.clone(),
-                                submitter: SupportedAccountId::Polkadot(item.submitter.clone()),
-                            })
-                            .collect();
+                    LocMap::<T>::translate_values(|loc: LegalOfficerCaseV11Of<T>| {
                         Some(LegalOfficerCaseOf::<T> {
                             owner: loc.owner,
                             requester: loc.requester,
-                            metadata,
-                            files,
+                            metadata: loc.metadata,
+                            files: loc.files,
                             closed: loc.closed,
                             loc_type: loc.loc_type,
                             links: loc.links,
@@ -95,6 +59,7 @@ pub mod v11 {
                             collection_max_size: loc.collection_max_size,
                             collection_can_upload: loc.collection_can_upload,
                             seal: loc.seal,
+                            sponsorship_id: None,
                         })
                     })
                 }
@@ -102,7 +67,6 @@ pub mod v11 {
         }
     }
 }
-
 
 fn do_storage_upgrade<T: Config, F>(expected_version: StorageVersion, target_version: StorageVersion, migration_name: &str, migration: F) -> Weight
 where F: FnOnce() -> () {
