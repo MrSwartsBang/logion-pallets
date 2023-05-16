@@ -134,3 +134,13 @@ pub trait RewardDistributor<I: Imbalance<B>, B: Balance> {
     }
 
 }
+
+pub type EuroCent = u32;
+
+pub trait LegalFee<I: Imbalance<B>, B: Balance, LocType, AccountId> {
+
+    fn get_legal_fee(loc_type: LocType) -> EuroCent;
+
+    /// Determine, distribute to, and return the beneficiary of Legal fee.
+    fn distribute(amount: I, loc_type: LocType, loc_owner: AccountId) -> AccountId;
+}

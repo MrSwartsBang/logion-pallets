@@ -1,5 +1,5 @@
-use crate::{self as pallet_loc, NegativeImbalanceOf, RequesterOf};
-use logion_shared::{DistributionKey, IsLegalOfficer, RewardDistributor};
+use crate::{self as pallet_loc, LocType, NegativeImbalanceOf, RequesterOf};
+use logion_shared::{DistributionKey, EuroCent, IsLegalOfficer, LegalFee, RewardDistributor};
 use sp_core::hash::H256;
 use frame_support::{construct_runtime, parameter_types, traits::{EnsureOrigin, Currency}};
 use sp_runtime::{traits::{BlakeTwo256, IdentityLookup}, testing::Header, Percent};
@@ -83,6 +83,7 @@ pub const LOGION_IDENTITY_LOC_ID: u32 = 4;
 pub const ISSUER_ID1: u64 = 5;
 pub const ISSUER_ID2: u64 = 6;
 pub const SPONSOR_ID: u64 = 7;
+pub const TREASURY_ACCOUNT_ID: u64 = 8;
 
 pub struct LoAuthorityListMock;
 impl EnsureOrigin<RuntimeOrigin> for LoAuthorityListMock {
@@ -146,6 +147,28 @@ parameter_types! {
         collators_percent: Percent::from_percent(30),
         reserve_percent: Percent::from_percent(20),
     };
+    pub const ExchangeRate: Balance = 200_000_000_000_000_000; // 1 euro cent = 0.2 LGNT;
+    pub const TreasuryAccountId: u64 = TREASURY_ACCOUNT_ID;
+}
+
+pub struct LegalFeeImpl;
+impl LegalFee<NegativeImbalanceOf<Test>, Balance, LocType, AccountId> for LegalFeeImpl {
+    fn get_legal_fee(loc_type: LocType) -> EuroCent {
+        match loc_type {
+            LocType::Identity => 8_00, // 8.00 euros
+            _ => 100_00, // 100.00 euros
+        }
+    }
+
+    fn distribute(amount: NegativeImbalanceOf<Test>, loc_type: LocType, loc_owner: AccountId) -> AccountId {
+
+        let beneficiary = match loc_type {
+            LocType::Identity => TREASURY_ACCOUNT_ID,
+            _ => loc_owner,
+        };
+        Balances::resolve_creating(&beneficiary, amount);
+        beneficiary
+    }
 }
 
 impl pallet_loc::Config for Test {
@@ -174,6 +197,8 @@ impl pallet_loc::Config for Test {
     type FileStorageFeeDistributionKey = RewardDistributionKey;
     type EthereumAddress = EthereumAddress;
     type SponsorshipId = SponsorshipId;
+    type LegalFee = LegalFeeImpl;
+    type ExchangeRate = ExchangeRate;
 }
 
 // Build genesis storage according to the mock runtime.
