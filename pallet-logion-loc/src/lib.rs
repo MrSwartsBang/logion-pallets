@@ -25,7 +25,7 @@ use logion_shared::LegalOfficerCaseSummary;
 use crate::Requester::Account;
 use frame_support::sp_runtime::Saturating;
 
-#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo, Copy)]
 pub enum LocType {
     Transaction,
     Identity,
@@ -235,7 +235,7 @@ pub mod pallet {
     };
     use codec::HasCompact;
     use frame_support::traits::{Currency};
-    use logion_shared::{LocQuery, LocValidity, IsLegalOfficer, RewardDistributor, DistributionKey};
+    use logion_shared::{LocQuery, LocValidity, IsLegalOfficer, RewardDistributor, DistributionKey, LegalFee, EuroCent};
     use super::*;
     pub use crate::weights::WeightInfo;
 
@@ -315,6 +315,12 @@ pub mod pallet {
 
         /// The identifier of a sponsorship
         type SponsorshipId: Member + Parameter + Default + Copy + HasCompact;
+
+        /// Used to payout legal fees
+        type LegalFee: LegalFee<NegativeImbalanceOf<Self>, BalanceOf<Self>, LocType, Self::AccountId>;
+
+        /// Exchange Rate LGNT/EURO cents, i.e. the amount of balance equivalent to 1 euro cent.
+        type ExchangeRate: Get<BalanceOf<Self>>;
     }
 
     #[pallet::pallet]
@@ -415,6 +421,8 @@ pub mod pallet {
         SponsorshipCreated(T::SponsorshipId, T::AccountId, SupportedAccountId<T::AccountId, T::EthereumAddress>),
         /// Issued when a sponsorship was successfully withdrawn [sponsorship_id, sponsor, sponsored_account]
         SponsorshipWithdrawn(T::SponsorshipId, T::AccountId, SupportedAccountId<T::AccountId, T::EthereumAddress>),
+        /// Issued when Legal Fee is withdrawn. [payerAccountId, beneficiaryAccountId, legalFee]
+        LegalFeeWithdrawn(T::AccountId, T::AccountId, BalanceOf<T>),
     }
 
     #[pallet::error]
@@ -561,6 +569,7 @@ pub mod pallet {
                 let requester = RequesterOf::<T>::Account(requester_account_id.clone());
                 let loc = Self::build_open_loc(&who, &requester, LocType::Identity, None);
 
+                Self::apply_legal_fee(&loc)?;
                 <LocMap<T>>::insert(loc_id, loc);
                 Self::link_with_account(&requester_account_id, &loc_id);
 
@@ -569,7 +578,8 @@ pub mod pallet {
             }
         }
 
-        /// Creates a new logion Identity LOC i.e. a LOC describing a real identity not yet linked to an AccountId
+        /// Creates a new logion Identity LOC i.e. a LOC describing a real identity not yet linked to an AccountId;
+        /// No Legal Fee is applied.
         #[pallet::call_index(1)]
         #[pallet::weight(T::WeightInfo::create_logion_identity_loc())]
         pub fn create_logion_identity_loc(
@@ -606,6 +616,7 @@ pub mod pallet {
                 let requester = RequesterOf::<T>::Account(requester_account_id.clone());
                 let loc = Self::build_open_loc(&who, &requester, LocType::Transaction, None);
 
+                Self::apply_legal_fee(&loc)?;
                 <LocMap<T>>::insert(loc_id, loc);
                 Self::link_with_account(&requester_account_id, &loc_id);
 
@@ -614,7 +625,8 @@ pub mod pallet {
             }
         }
 
-        /// Creates a new logion Transaction LOC i.e. a LOC requested with a logion Identity LOC
+        /// Creates a new logion Transaction LOC i.e. a LOC requested with a logion Identity LOC;
+        /// No Legal Fee is applied.
         #[pallet::call_index(3)]
         #[pallet::weight(T::WeightInfo::create_logion_transaction_loc())]
         pub fn create_logion_transaction_loc(
@@ -675,6 +687,7 @@ pub mod pallet {
                     collection_can_upload,
                 );
 
+                Self::apply_legal_fee(&loc)?;
                 <LocMap<T>>::insert(loc_id, loc);
                 Self::link_with_account(&requester_account_id, &loc_id);
 
@@ -1062,6 +1075,7 @@ pub mod pallet {
                 let requester = RequesterOf::<T>::OtherAccount(requester_account_id.clone());
                 let loc = Self::build_open_loc(&who, &requester, LocType::Identity, Some(sponsorship_id));
 
+                Self::apply_legal_fee(&loc)?;
                 <LocMap<T>>::insert(loc_id, loc);
                 Self::link_with_other_account(&requester_account_id, &loc_id);
                 Self::link_sponsorship_to_loc(&sponsorship_id, &loc_id);
@@ -1532,6 +1546,35 @@ pub mod pallet {
             let entry_fee: BalanceOf<T> = T::FileStorageEntryFee::get();
             byte_fee.saturating_mul(tot_size.into())
                 .saturating_add(entry_fee.saturating_mul(num_of_entries.into()))
+        }
+
+        fn apply_legal_fee(loc: &LegalOfficerCaseOf<T>) -> DispatchResult {
+            let fee_payer: Option<T::AccountId> = match loc.sponsorship_id {
+                Some(sponsorship_id) => {
+                    let sponsorship = <SponsorshipMap<T>>::get(sponsorship_id).unwrap();
+                    Some(sponsorship.sponsor)
+                }
+                _ => {
+                    match loc.requester.clone() {
+                        Account(requester_account) => Some(requester_account),
+                        _ => None
+                    }
+                }
+            };
+            if fee_payer.is_some() {
+                let fee = Self::calculate_legal_fee(loc.loc_type);
+                ensure!(T::Currency::can_slash(&fee_payer.as_ref().unwrap(), fee), Error::<T>::InsufficientFunds);
+                let (credit, _) = T::Currency::slash(&fee_payer.as_ref().unwrap(), fee);
+                let beneficiary = T::LegalFee::distribute(credit, loc.loc_type, loc.owner.clone());
+                Self::deposit_event(Event::LegalFeeWithdrawn(fee_payer.unwrap(), beneficiary, fee));
+            }
+            Ok(())
+        }
+
+        pub fn calculate_legal_fee(loc_type: LocType) -> BalanceOf<T> {
+            let fee_in_euro_cent: EuroCent = T::LegalFee::get_legal_fee(loc_type);
+            let exchange_rate: BalanceOf<T> = T::ExchangeRate::get();
+            exchange_rate.saturating_mul(fee_in_euro_cent.into())
         }
 
         fn can_link_to_sponsorship(
