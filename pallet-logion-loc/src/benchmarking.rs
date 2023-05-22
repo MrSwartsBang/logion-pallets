@@ -32,7 +32,7 @@ benchmarks! {
     add_metadata {
         let caller = <T as crate::Config>::CreateOrigin::successful_origin().into().ok().unwrap();
         let loc_id = Default::default();
-        let item = MetadataItem {
+        let item = MetadataItemParams {
             name: vec![1u8, 2u8, 3u8],
             value: vec![4u8, 5u8, 6u8],
             submitter: Default::default(),

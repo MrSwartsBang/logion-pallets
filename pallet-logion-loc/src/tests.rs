@@ -8,7 +8,7 @@ use sp_runtime::traits::Hash;
 
 use logion_shared::{LocQuery, LocValidity};
 
-use crate::{Error, File, LegalOfficerCase, LocLink, LocType, MetadataItem, CollectionItem, CollectionItemFile, CollectionItemToken, mock::*, TermsAndConditionsElement, TokensRecordFile, UnboundedTokensRecordFileOf, VerifiedIssuer, Config, OtherAccountId, SupportedAccountId};
+use crate::{Error, File, LegalOfficerCase, LocLink, LocType, MetadataItem, CollectionItem, CollectionItemFile, CollectionItemToken, mock::*, TermsAndConditionsElement, TokensRecordFile, UnboundedTokensRecordFileOf, VerifiedIssuer, Config, OtherAccountId, SupportedAccountId, MetadataItemParams};
 use crate::Requester::{Account, OtherAccount};
 
 const LOC_ID: u32 = 0;
@@ -22,6 +22,8 @@ const ONE_LGNT: Balance = 1_000_000_000_000_000_000;
 const BALANCE_OK_FOR_FILES: Balance = ONE_LGNT;
 const BALANCE_OK_FOR_LOC_CREATION: Balance = 3 * 2000 * ONE_LGNT;
 const INSUFFICIENT_BALANCE: Balance = 99;
+const ACKNOWLEDGED: bool = true;
+const NOT_ACKNOWLEDGED: bool = !ACKNOWLEDGED;
 
 #[test]
 fn it_creates_loc() {
@@ -161,35 +163,102 @@ fn it_fails_replacing_with_wrongly_typed_loc() {
 }
 
 #[test]
-fn it_adds_metadata_when_submitter_is_owner() {
+fn it_adds_metadata_when_caller_and_submitter_is_owner() {
     new_test_ext().execute_with(|| {
         setup_default_balances();
         assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
-        let metadata = MetadataItem {
+        let metadata = MetadataItemParams {
             name: vec![1, 2, 3],
             value: vec![4, 5, 6],
             submitter: SupportedAccountId::Polkadot(LOC_OWNER1),
         };
         assert_ok!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.clone()));
         let loc = LogionLoc::loc(LOC_ID).unwrap();
-        assert_eq!(loc.metadata[0], metadata);
+        assert_eq!(loc.metadata[0], expected_metadata(metadata, ACKNOWLEDGED));
     });
 }
 
+fn expected_metadata(metadata: MetadataItemParams<AccountId, EthereumAddress>, acknowledged: bool) -> MetadataItem<AccountId, EthereumAddress> {
+    return MetadataItem {
+        name: metadata.name,
+        value: metadata.value,
+        submitter: metadata.submitter,
+        acknowledged,
+    };
+}
+
 #[test]
-fn it_adds_metadata_when_submitter_is_requester() {
+fn it_adds_metadata_when_caller_is_owner_and_submitter_is_requester() {
     new_test_ext().execute_with(|| {
         setup_default_balances();
         assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
-        let metadata = MetadataItem {
+        let metadata = MetadataItemParams {
             name: vec![1, 2, 3],
             value: vec![4, 5, 6],
             submitter: SupportedAccountId::Polkadot(LOC_REQUESTER_ID),
         };
         assert_ok!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.clone()));
         let loc = LogionLoc::loc(LOC_ID).unwrap();
-        assert_eq!(loc.metadata[0], metadata);
+        assert_eq!(loc.metadata[0], expected_metadata(metadata, ACKNOWLEDGED));
     });
+}
+
+#[test]
+fn it_adds_metadata_when_caller_is_requester() {
+    new_test_ext().execute_with(|| {
+        setup_default_balances();
+        assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
+        let metadata = MetadataItemParams {
+            name: vec![1, 2, 3],
+            value: vec![4, 5, 6],
+            submitter: SupportedAccountId::Polkadot(LOC_REQUESTER_ID),
+        };
+        assert_ok!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, metadata.clone()));
+        let loc = LogionLoc::loc(LOC_ID).unwrap();
+        assert_eq!(loc.metadata[0], expected_metadata(metadata, NOT_ACKNOWLEDGED));
+    });
+}
+
+#[test]
+fn it_acknowledges_metadata() {
+    new_test_ext().execute_with(|| {
+        let metadata = create_loc_with_metadata_from_requester();
+        assert_ok!(LogionLoc::acknowledge_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.name.clone()));
+        let loc = LogionLoc::loc(LOC_ID).unwrap();
+        assert_eq!(loc.metadata[0], expected_metadata(metadata.clone(), ACKNOWLEDGED));
+    });
+}
+
+#[test]
+fn it_fails_to_acknowledges_unknown_metadata() {
+    new_test_ext().execute_with(|| {
+        create_loc_with_metadata_from_requester();
+        let name = "unknown_metadata".as_bytes().to_vec();
+        assert_err!(LogionLoc::acknowledge_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, name), Error::<Test>::ItemNotFound);
+    });
+}
+
+#[test]
+fn it_fails_to_acknowledges_already_acknowledged_metadata() {
+    new_test_ext().execute_with(|| {
+        let metadata = create_loc_with_metadata_from_requester();
+        assert_ok!(LogionLoc::acknowledge_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.name.clone()));
+        assert_err!(LogionLoc::acknowledge_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.name.clone()), Error::<Test>::ItemAlreadyAcknowledged);
+    });
+}
+
+fn create_loc_with_metadata_from_requester() -> MetadataItemParams<AccountId, EthereumAddress> {
+    setup_default_balances();
+    assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
+    let metadata = MetadataItemParams {
+        name: vec![1, 2, 3],
+        value: vec![4, 5, 6],
+        submitter: SupportedAccountId::Polkadot(LOC_REQUESTER_ID),
+    };
+    assert_ok!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, metadata.clone()));
+    let loc = LogionLoc::loc(LOC_ID).unwrap();
+    assert_eq!(loc.metadata[0], expected_metadata(metadata.clone(), NOT_ACKNOWLEDGED));
+    metadata
 }
 
 #[test]
@@ -197,12 +266,12 @@ fn it_fails_adding_metadata_for_unauthorized_caller() {
     new_test_ext().execute_with(|| {
         setup_default_balances();
         assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
-        let metadata = MetadataItem {
+        let metadata = MetadataItemParams {
             name: vec![1, 2, 3],
             value: vec![4, 5, 6],
             submitter: SupportedAccountId::Polkadot(LOC_OWNER1),
         };
-        assert_err!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, metadata.clone()), Error::<Test>::Unauthorized);
+        assert_err!(LogionLoc::add_metadata(RuntimeOrigin::signed(UNAUTHORIZED_CALLER), LOC_ID, metadata.clone()), Error::<Test>::Unauthorized);
     });
 }
 
@@ -211,12 +280,26 @@ fn it_fails_adding_metadata_when_closed() {
     new_test_ext().execute_with(|| {
         setup_default_balances();
         create_closed_loc();
-        let metadata = MetadataItem {
+        let metadata = MetadataItemParams {
             name: vec![1, 2, 3],
             value: vec![4, 5, 6],
             submitter: SupportedAccountId::Polkadot(LOC_OWNER1),
         };
         assert_err!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.clone()), Error::<Test>::CannotMutate);
+    });
+}
+
+#[test]
+fn it_fails_adding_metadata_when_invalid_submitter() {
+    new_test_ext().execute_with(|| {
+        setup_default_balances();
+        assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
+        let metadata = MetadataItemParams {
+            name: vec![1, 2, 3],
+            value: vec![4, 5, 6],
+            submitter: SupportedAccountId::Polkadot(LOC_OWNER1),
+        };
+        assert_err!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, metadata.clone()), Error::<Test>::Unauthorized);
     });
 }
 
@@ -307,7 +390,7 @@ fn it_fails_adding_file_for_unauthorized_caller() {
             submitter: SupportedAccountId::Polkadot(LOC_OWNER1),
             size: FILE_SIZE,
         };
-        assert_err!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, file.clone()), Error::<Test>::Unauthorized);
+        assert_err!(LogionLoc::add_file(RuntimeOrigin::signed(UNAUTHORIZED_CALLER), LOC_ID, file.clone()), Error::<Test>::Unauthorized);
     });
 }
 
@@ -1124,13 +1207,13 @@ fn it_fails_adding_metadata_with_same_name() {
     new_test_ext().execute_with(|| {
         setup_default_balances();
         assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
-        let metadata1 = MetadataItem {
+        let metadata1 = MetadataItemParams {
             name: "name".as_bytes().to_vec(),
             value: "value1".as_bytes().to_vec(),
             submitter: SupportedAccountId::Polkadot(LOC_REQUESTER_ID),
         };
         assert_ok!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata1.clone()));
-        let metadata2 = MetadataItem {
+        let metadata2 = MetadataItemParams {
             name: "name".as_bytes().to_vec(),
             value: "value2".as_bytes().to_vec(),
             submitter: SupportedAccountId::Polkadot(LOC_REQUESTER_ID),
@@ -1163,21 +1246,21 @@ fn it_adds_several_metadata() {
     new_test_ext().execute_with(|| {
         setup_default_balances();
         assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
-        let metadata1 = MetadataItem {
+        let metadata1 = MetadataItemParams {
             name: vec![1, 2, 3],
             value: vec![4, 5, 6],
             submitter: SupportedAccountId::Polkadot(LOC_OWNER1),
         };
         assert_ok!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata1.clone()));
-        let metadata2 = MetadataItem {
+        let metadata2 = MetadataItemParams {
             name: vec![1, 2, 4],
             value: vec![4, 5, 6],
             submitter: SupportedAccountId::Polkadot(LOC_OWNER1),
         };
         assert_ok!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata2.clone()));
         let loc = LogionLoc::loc(LOC_ID).unwrap();
-        assert_eq!(loc.metadata[0], metadata1);
-        assert_eq!(loc.metadata[1], metadata2);
+        assert_eq!(loc.metadata[0], expected_metadata(metadata1, ACKNOWLEDGED));
+        assert_eq!(loc.metadata[1], expected_metadata(metadata2, ACKNOWLEDGED));
     });
 }
 
@@ -1681,7 +1764,7 @@ fn it_adds_metadata_on_logion_identity_loc_for_when_submitter_is_issuer() {
         setup_default_balances();
         assert_ok!(LogionLoc::create_logion_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
         nominated_and_select_issuer(LOC_ID);
-        let metadata = MetadataItem {
+        let metadata = MetadataItemParams {
             name: vec![1, 2, 3],
             value: vec![4, 5, 6],
             submitter: SupportedAccountId::Polkadot(ISSUER_ID1),
@@ -1695,7 +1778,7 @@ fn it_fails_adding_metadata_on_logion_identity_loc_cannot_submit() {
     new_test_ext().execute_with(|| {
         setup_default_balances();
         assert_ok!(LogionLoc::create_logion_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
-        let metadata = MetadataItem {
+        let metadata = MetadataItemParams {
             name: vec![1, 2, 3],
             value: vec![4, 5, 6],
             submitter: SupportedAccountId::Polkadot(LOC_OWNER2),
@@ -1710,7 +1793,7 @@ fn it_adds_metadata_on_polkadot_transaction_loc_when_submitter_is_issuer() {
         setup_default_balances();
         assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
         nominated_and_select_issuer(LOC_ID);
-        let metadata = MetadataItem {
+        let metadata = MetadataItemParams {
             name: vec![1, 2, 3],
             value: vec![4, 5, 6],
             submitter: SupportedAccountId::Polkadot(ISSUER_ID1),
@@ -1724,7 +1807,7 @@ fn it_fails_adding_metadata_on_polkadot_transaction_loc_cannot_submit() {
     new_test_ext().execute_with(|| {
         setup_default_balances();
         assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
-        let metadata = MetadataItem {
+        let metadata = MetadataItemParams {
             name: vec![1, 2, 3],
             value: vec![4, 5, 6],
             submitter: SupportedAccountId::Polkadot(LOC_OWNER2),
@@ -1895,14 +1978,14 @@ fn it_adds_metadata_when_submitter_is_ethereum_requester() {
         let sponsored_account = SupportedAccountId::Other(requester_address);
         assert_ok!(LogionLoc::sponsor(RuntimeOrigin::signed(SPONSOR_ID), sponsorship_id, sponsored_account, LOC_OWNER1));
         assert_ok!(LogionLoc::create_other_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, requester_address, sponsorship_id));
-        let metadata = MetadataItem {
+        let metadata = MetadataItemParams {
             name: vec![1, 2, 3],
             value: vec![4, 5, 6],
             submitter: sponsored_account,
         };
         assert_ok!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.clone()));
         let loc = LogionLoc::loc(LOC_ID).unwrap();
-        assert_eq!(loc.metadata[0], metadata);
+        assert_eq!(loc.metadata[0], expected_metadata(metadata, ACKNOWLEDGED));
     });
 }
 
