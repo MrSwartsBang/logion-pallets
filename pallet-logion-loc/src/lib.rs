@@ -43,6 +43,14 @@ pub struct MetadataItem<AccountId, EthereumAddress> {
     name: Vec<u8>,
     value: Vec<u8>,
     submitter: SupportedAccountId<AccountId, EthereumAddress>,
+    acknowledged: bool,
+}
+
+#[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
+pub struct MetadataItemParams<AccountId, EthereumAddress> {
+    name: Vec<u8>,
+    value: Vec<u8>,
+    submitter: SupportedAccountId<AccountId, EthereumAddress>,
 }
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
@@ -453,7 +461,7 @@ pub mod pallet {
         UnexpectedRequester,
         /// Occurs when trying to void a LOC by replacing it with a LOC of a different type
         ReplacerLocWrongType,
-        /// Submitter must be either LOC owner, either LOC requester (only when requester is a Polkadot account)
+        /// Submitter is not consistent with caller
         InvalidSubmitter,
         /// A collection LOC must be limited in time and/or quantity of items
         CollectionHasNoLimit,
@@ -514,6 +522,10 @@ pub mod pallet {
         AlreadyUsed,
         /// The sponsorship cannot be used for creating the new LOC
         CannotLinkToSponsorship,
+        /// Target Item (Metadata or File) could not be found in LOC
+        ItemNotFound,
+        /// Target Item (Metadata or File) is already acknowledged
+        ItemAlreadyAcknowledged,
     }
 
     #[pallet::hooks]
@@ -702,7 +714,7 @@ pub mod pallet {
         pub fn add_metadata(
             origin: OriginFor<T>,
             #[pallet::compact] loc_id: T::LocId,
-            item: MetadataItem<T::AccountId, T::EthereumAddress>
+            item: MetadataItemParams<T::AccountId, T::EthereumAddress>
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
@@ -717,13 +729,16 @@ pub mod pallet {
                 Err(Error::<T>::NotFound)?
             } else {
                 let loc = <LocMap<T>>::get(&loc_id).unwrap();
-                if loc.owner != who {
+                let submitted_by_owner: bool = loc.owner == who;
+                if !submitted_by_owner && !Self::can_submit(&loc_id, &loc, &SupportedAccountId::Polkadot(who.clone())) {
                     Err(Error::<T>::Unauthorized)?
+                } else if !submitted_by_owner && item.submitter != SupportedAccountId::Polkadot(who) {
+                    Err(Error::<T>::InvalidSubmitter)?
                 } else if loc.closed {
                     Err(Error::<T>::CannotMutate)?
                 } else if loc.void_info.is_some() {
                     Err(Error::<T>::CannotMutateVoid)?
-                } else if !Self::can_submit(&loc_id, &loc, &item.submitter) {
+                } else if submitted_by_owner && !Self::can_submit(&loc_id, &loc, &item.submitter) {
                     Err(Error::<T>::CannotSubmit)?
                 } else {
                     if loc.metadata.iter().find(|metadata_item| metadata_item.name == item.name).is_some() {
@@ -731,7 +746,12 @@ pub mod pallet {
                     }
                     <LocMap<T>>::mutate(loc_id, |loc| {
                         let mutable_loc = loc.as_mut().unwrap();
-                        mutable_loc.metadata.push(item);
+                        mutable_loc.metadata.push(MetadataItem {
+                            name: item.name,
+                            value: item.value,
+                            submitter: item.submitter,
+                            acknowledged: submitted_by_owner,
+                        });
                     });
                     Ok(().into())
                 }
@@ -1135,6 +1155,40 @@ pub mod pallet {
                     <SponsorshipMap<T>>::remove(&sponsorship_id);
 
                     Self::deposit_event(Event::SponsorshipWithdrawn(sponsorship_id, sponsor, sponsored_account));
+                    Ok(().into())
+                }
+            }
+        }
+
+        /// Acknowledge a metadata item.
+        #[pallet::call_index(21)]
+        #[pallet::weight(T::WeightInfo::acknowledge_metadata())]
+        pub fn acknowledge_metadata(
+            origin: OriginFor<T>,
+            #[pallet::compact] loc_id: T::LocId,
+            name: Vec<u8>,
+        ) -> DispatchResultWithPostInfo {
+            let who = T::IsLegalOfficer::ensure_origin(origin.clone())?;
+
+            if !<LocMap<T>>::contains_key(&loc_id) {
+                Err(Error::<T>::NotFound)?
+            } else {
+                let loc = <LocMap<T>>::get(&loc_id).unwrap();
+                if loc.owner != who {
+                    Err(Error::<T>::Unauthorized)?
+                }
+                let option_item_index = loc.metadata.iter().position(|item| item.name == name);
+                if option_item_index.is_none() {
+                    Err(Error::<T>::ItemNotFound)?
+                } else {
+                    let item_index = option_item_index.unwrap();
+                    if loc.metadata[item_index].acknowledged {
+                        Err(Error::<T>::ItemAlreadyAcknowledged)?
+                    }
+                    <LocMap<T>>::mutate(loc_id, |loc| {
+                        let mutable_loc = loc.as_mut().unwrap();
+                        mutable_loc.metadata[item_index].acknowledged = true;
+                    });
                     Ok(().into())
                 }
             }

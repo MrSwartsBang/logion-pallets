@@ -84,6 +84,7 @@ pub const ISSUER_ID1: u64 = 5;
 pub const ISSUER_ID2: u64 = 6;
 pub const SPONSOR_ID: u64 = 7;
 pub const TREASURY_ACCOUNT_ID: u64 = 8;
+pub const UNAUTHORIZED_CALLER: u64 = 9;
 
 pub struct LoAuthorityListMock;
 impl EnsureOrigin<RuntimeOrigin> for LoAuthorityListMock {
