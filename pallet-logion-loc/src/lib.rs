@@ -730,10 +730,11 @@ pub mod pallet {
             } else {
                 let loc = <LocMap<T>>::get(&loc_id).unwrap();
                 let submitted_by_owner: bool = loc.owner == who;
-                if !submitted_by_owner && !Self::can_submit(&loc_id, &loc, &SupportedAccountId::Polkadot(who.clone())) {
+                if !submitted_by_owner && (
+                    !Self::can_submit(&loc_id, &loc, &SupportedAccountId::Polkadot(who.clone())) ||
+                        item.submitter != SupportedAccountId::Polkadot(who)
+                ) {
                     Err(Error::<T>::Unauthorized)?
-                } else if !submitted_by_owner && item.submitter != SupportedAccountId::Polkadot(who) {
-                    Err(Error::<T>::InvalidSubmitter)?
                 } else if loc.closed {
                     Err(Error::<T>::CannotMutate)?
                 } else if loc.void_info.is_some() {

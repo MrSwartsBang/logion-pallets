@@ -299,7 +299,7 @@ fn it_fails_adding_metadata_when_invalid_submitter() {
             value: vec![4, 5, 6],
             submitter: SupportedAccountId::Polkadot(LOC_OWNER1),
         };
-        assert_err!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, metadata.clone()), Error::<Test>::InvalidSubmitter);
+        assert_err!(LogionLoc::add_metadata(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, metadata.clone()), Error::<Test>::Unauthorized);
     });
 }
 
