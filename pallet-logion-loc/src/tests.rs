@@ -8,7 +8,7 @@ use sp_runtime::traits::Hash;
 
 use logion_shared::{LocQuery, LocValidity};
 
-use crate::{Error, File, LegalOfficerCase, LocLink, LocType, MetadataItem, CollectionItem, CollectionItemFile, CollectionItemToken, mock::*, TermsAndConditionsElement, TokensRecordFile, UnboundedTokensRecordFileOf, VerifiedIssuer, Config, OtherAccountId, SupportedAccountId, MetadataItemParams};
+use crate::{Error, File, LegalOfficerCase, LocLink, LocType, MetadataItem, CollectionItem, CollectionItemFile, CollectionItemToken, mock::*, TermsAndConditionsElement, TokensRecordFile, UnboundedTokensRecordFileOf, VerifiedIssuer, Config, OtherAccountId, SupportedAccountId, MetadataItemParams, FileParams};
 use crate::Requester::{Account, OtherAccount};
 
 const LOC_ID: u32 = 0;
@@ -247,6 +247,14 @@ fn it_fails_to_acknowledges_already_acknowledged_metadata() {
     });
 }
 
+#[test]
+fn it_fails_to_acknowledges_metadata_when_unauthorized_caller() {
+    new_test_ext().execute_with(|| {
+        let metadata = create_loc_with_metadata_from_requester();
+        assert_err!(LogionLoc::acknowledge_metadata(RuntimeOrigin::signed(UNAUTHORIZED_CALLER), LOC_ID, metadata.name.clone()), BadOrigin);
+    });
+}
+
 fn create_loc_with_metadata_from_requester() -> MetadataItemParams<AccountId, EthereumAddress> {
     setup_default_balances();
     assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
@@ -309,12 +317,12 @@ fn create_closed_loc() {
 }
 
 #[test]
-fn it_adds_file_when_submitter_is_owner() {
+fn it_adds_file_when_caller_owner_and_submitter_is_owner() {
     new_test_ext().execute_with(|| {
         setup_default_balances();
         assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
         set_balance(LOC_REQUESTER_ID, BALANCE_OK_FOR_FILES);
-        let file = File {
+        let file = FileParams {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file-nature".as_bytes().to_vec(),
             submitter: SupportedAccountId::Polkadot(LOC_OWNER1),
@@ -322,16 +330,26 @@ fn it_adds_file_when_submitter_is_owner() {
         };
         assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()));
         let loc = LogionLoc::loc(LOC_ID).unwrap();
-        assert_eq!(loc.files[0], file);
-        check_storage_fees(1, file.size, LOC_REQUESTER_ID);
+        assert_eq!(loc.files[0], expected_file(&file, ACKNOWLEDGED));
+        check_storage_fees(1, &file.size, LOC_REQUESTER_ID);
     });
+}
+
+fn expected_file(file: &FileParams<H256, AccountId, EthereumAddress>, acknowledged: bool) -> File<H256, AccountId, EthereumAddress> {
+    return File {
+        hash: file.hash,
+        nature: file.nature.clone(),
+        submitter: file.submitter,
+        size: file.size,
+        acknowledged,
+    }
 }
 
 fn set_balance(account_id: AccountId, amount: Balance) {
     assert_ok!(Balances::set_balance(RuntimeOrigin::root(), account_id, amount, 0));
 }
 
-fn check_storage_fees(num_of_files: u32, tot_size: u32, payer: AccountId) {
+fn check_storage_fees(num_of_files: u32, tot_size: &u32, payer: AccountId) {
     // The following tests assumes that inclusion fees are disabled
     let expected_fees: Balance = (num_of_files * FileStorageEntryFee::get() + tot_size * FileStorageByteFee::get()) as Balance;
     let credited_fees: Balance = get_free_balance(RESERVE_ACCOUNT) +
@@ -361,12 +379,12 @@ fn check_legal_fees(expected_fees: Balance, payer: AccountId, beneficiary: Accou
 }
 
 #[test]
-fn it_adds_file_when_submitter_is_requester() {
+fn it_adds_file_when_caller_is_owner_and_submitter_is_requester() {
     new_test_ext().execute_with(|| {
         setup_default_balances();
         assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
         set_balance(LOC_REQUESTER_ID, BALANCE_OK_FOR_FILES);
-        let file = File {
+        let file = FileParams {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file-nature".as_bytes().to_vec(),
             submitter: SupportedAccountId::Polkadot(LOC_REQUESTER_ID),
@@ -374,9 +392,80 @@ fn it_adds_file_when_submitter_is_requester() {
         };
         assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()));
         let loc = LogionLoc::loc(LOC_ID).unwrap();
-        assert_eq!(loc.files[0], file);
-        check_storage_fees(1, file.size, LOC_REQUESTER_ID);
+        assert_eq!(loc.files[0], expected_file(&file, ACKNOWLEDGED));
+        check_storage_fees(1, &file.size, LOC_REQUESTER_ID);
     });
+}
+
+
+#[test]
+fn it_adds_file_when_caller_is_requester() {
+    new_test_ext().execute_with(|| {
+        setup_default_balances();
+        assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
+        set_balance(LOC_REQUESTER_ID, BALANCE_OK_FOR_FILES);
+        let file = FileParams {
+            hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
+            nature: "test-file-nature".as_bytes().to_vec(),
+            submitter: SupportedAccountId::Polkadot(LOC_REQUESTER_ID),
+            size: FILE_SIZE,
+        };
+        assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, file.clone()));
+        let loc = LogionLoc::loc(LOC_ID).unwrap();
+        assert_eq!(loc.files[0], expected_file(&file, NOT_ACKNOWLEDGED));
+        check_storage_fees(1, &file.size, LOC_REQUESTER_ID);
+    });
+}
+
+#[test]
+fn it_acknowledges_file() {
+    new_test_ext().execute_with(|| {
+        let file = create_loc_with_file_from_requester();
+        assert_ok!(LogionLoc::acknowledge_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.hash.clone()));
+        let loc = LogionLoc::loc(LOC_ID).unwrap();
+        assert_eq!(loc.files[0], expected_file(&file, ACKNOWLEDGED));
+    });
+}
+
+#[test]
+fn it_fails_to_acknowledges_unknown_file() {
+    new_test_ext().execute_with(|| {
+        create_loc_with_file_from_requester();
+        let hash = BlakeTwo256::hash_of(&"unknown_hash".as_bytes().to_vec());
+        assert_err!(LogionLoc::acknowledge_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, hash), Error::<Test>::ItemNotFound);
+    });
+}
+
+#[test]
+fn it_fails_to_acknowledges_already_acknowledged_file() {
+    new_test_ext().execute_with(|| {
+        let file = create_loc_with_file_from_requester();
+        assert_ok!(LogionLoc::acknowledge_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.hash.clone()));
+        assert_err!(LogionLoc::acknowledge_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.hash.clone()), Error::<Test>::ItemAlreadyAcknowledged);
+    });
+}
+
+#[test]
+fn it_fails_to_acknowledges_file_when_unauthorized_caller() {
+    new_test_ext().execute_with(|| {
+        let file = create_loc_with_file_from_requester();
+        assert_err!(LogionLoc::acknowledge_file(RuntimeOrigin::signed(UNAUTHORIZED_CALLER), LOC_ID, file.hash.clone()), BadOrigin);
+    });
+}
+
+fn create_loc_with_file_from_requester() -> FileParams<H256, AccountId, EthereumAddress> {
+    setup_default_balances();
+    assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
+    let file = FileParams {
+        hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
+        nature: "test-file-nature".as_bytes().to_vec(),
+        submitter: SupportedAccountId::Polkadot(LOC_REQUESTER_ID),
+        size: FILE_SIZE,
+    };
+    assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, file.clone()));
+    let loc = LogionLoc::loc(LOC_ID).unwrap();
+    assert_eq!(loc.files[0], expected_file(&file, NOT_ACKNOWLEDGED));
+    file
 }
 
 #[test]
@@ -384,7 +473,7 @@ fn it_fails_adding_file_for_unauthorized_caller() {
     new_test_ext().execute_with(|| {
         setup_default_balances();
         assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
-        let file = File {
+        let file = FileParams {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file-nature".as_bytes().to_vec(),
             submitter: SupportedAccountId::Polkadot(LOC_OWNER1),
@@ -400,7 +489,7 @@ fn it_fails_adding_file_when_insufficient_funds() {
         setup_default_balances();
         assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
         set_balance(LOC_REQUESTER_ID, INSUFFICIENT_BALANCE);
-        let file = File {
+        let file = FileParams {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file-nature".as_bytes().to_vec(),
             submitter: SupportedAccountId::Polkadot(LOC_REQUESTER_ID),
@@ -428,7 +517,7 @@ fn it_fails_adding_file_when_closed() {
     new_test_ext().execute_with(|| {
         setup_default_balances();
         create_closed_loc();
-        let file = File {
+        let file = FileParams {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file-nature".as_bytes().to_vec(),
             submitter: SupportedAccountId::Polkadot(LOC_OWNER1),
@@ -974,7 +1063,7 @@ fn it_adds_item_with_one_file_attached() {
             size: FILE_SIZE,
         }];
         assert_ok!(LogionLoc::add_collection_item(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, collection_item_id, collection_item_description, collection_item_files, Option::None, false));
-        check_storage_fees(1, FILE_SIZE, LOC_REQUESTER_ID);
+        check_storage_fees(1, &FILE_SIZE, LOC_REQUESTER_ID);
     });
 }
 
@@ -1020,7 +1109,7 @@ fn it_adds_item_with_token() {
             token_id: "{\"contract\":\"0x765df6da33c1ec1f83be42db171d7ee334a46df5\",\"token\":\"4391\"}".as_bytes().to_vec(),
         };
         assert_ok!(LogionLoc::add_collection_item(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, collection_item_id, collection_item_description, collection_item_files, Option::Some(collection_item_token), true));
-        check_storage_fees(1, 123456, LOC_REQUESTER_ID);
+        check_storage_fees(1, &123456, LOC_REQUESTER_ID);
     });
 }
 
@@ -1132,7 +1221,7 @@ fn it_adds_item_with_two_files_attached() {
             },
         ];
         assert_ok!(LogionLoc::add_collection_item(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, collection_item_id, collection_item_description, collection_item_files, Option::None, false));
-        check_storage_fees(2, 123456 + 789, LOC_REQUESTER_ID);
+        check_storage_fees(2, &(123456 + 789), LOC_REQUESTER_ID);
     });
 }
 
@@ -1184,21 +1273,21 @@ fn it_fails_adding_file_with_same_hash() {
         setup_default_balances();
         assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
         set_balance(LOC_REQUESTER_ID, BALANCE_OK_FOR_FILES);
-        let file1 = File {
+        let file1 = FileParams {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file-nature".as_bytes().to_vec(),
             submitter: SupportedAccountId::Polkadot(LOC_REQUESTER_ID),
             size: FILE_SIZE,
         };
         assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file1.clone()));
-        let file2 = File {
+        let file2 = FileParams {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file2-nature".as_bytes().to_vec(),
             submitter: SupportedAccountId::Polkadot(LOC_REQUESTER_ID),
             size: FILE_SIZE,
         };
         assert_err!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file2.clone()), Error::<Test>::DuplicateLocFile);
-        check_storage_fees(1, FILE_SIZE, LOC_REQUESTER_ID);
+        check_storage_fees(1, &FILE_SIZE, LOC_REQUESTER_ID);
     });
 }
 
@@ -1474,7 +1563,7 @@ fn it_adds_tokens_record(submitter: u64) {
         assert_eq!(record.files[0].content_type.to_vec(), record_files[0].content_type);
         assert_eq!(record.files[0].size, record_files[0].size);
         assert_eq!(record.files[0].hash, record_files[0].hash);
-        check_storage_fees(1, record_files[0].size, LOC_REQUESTER_ID);
+        check_storage_fees(1, &record_files[0].size, LOC_REQUESTER_ID);
     });
 }
 
@@ -1528,7 +1617,7 @@ fn it_fails_adding_tokens_record_already_exists() {
         assert_ok!(LogionLoc::add_tokens_record(RuntimeOrigin::signed(ISSUER_ID1), LOC_ID, record_id, record_description.clone(), record_files.clone()));
         assert_err!(LogionLoc::add_tokens_record(RuntimeOrigin::signed(ISSUER_ID1), LOC_ID, record_id, record_description, record_files.clone()), Error::<Test>::TokensRecordAlreadyExists);
         let file = record_files.get(0).unwrap();
-        check_storage_fees(1, file.size, LOC_REQUESTER_ID);
+        check_storage_fees(1, &file.size, LOC_REQUESTER_ID);
     });
 }
 
@@ -1703,20 +1792,42 @@ fn it_fails_adding_tokens_record_when_insufficient_funds() {
 }
 
 #[test]
-fn it_adds_file_on_logion_identity_loc_when_submitter_is_issuer() {
+fn it_adds_file_on_logion_identity_loc_when_caller_is_owner_and_submitter_is_issuer() {
     new_test_ext().execute_with(|| {
         setup_default_balances();
         assert_ok!(LogionLoc::create_logion_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
         set_balance(LOC_OWNER1, BALANCE_OK_FOR_FILES);
         nominated_and_select_issuer(LOC_ID);
-        let file = File {
+        let file = FileParams {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file-nature".as_bytes().to_vec(),
             submitter: SupportedAccountId::Polkadot(ISSUER_ID1),
             size: FILE_SIZE,
         };
         assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()));
-        check_storage_fees(1, FILE_SIZE, LOC_OWNER1);
+        let loc = LogionLoc::loc(LOC_ID).unwrap();
+        assert_eq!(loc.files[0], expected_file(&file, ACKNOWLEDGED));
+        check_storage_fees(1, &FILE_SIZE, LOC_OWNER1);
+    });
+}
+
+#[test]
+fn it_adds_file_on_logion_identity_loc_when_caller_and_submitter_is_issuer() {
+    new_test_ext().execute_with(|| {
+        setup_default_balances();
+        assert_ok!(LogionLoc::create_logion_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
+        set_balance(LOC_OWNER1, BALANCE_OK_FOR_FILES);
+        nominated_and_select_issuer(LOC_ID);
+        let file = FileParams {
+            hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
+            nature: "test-file-nature".as_bytes().to_vec(),
+            submitter: SupportedAccountId::Polkadot(ISSUER_ID1),
+            size: FILE_SIZE,
+        };
+        assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(ISSUER_ID1), LOC_ID, file.clone()));
+        let loc = LogionLoc::loc(LOC_ID).unwrap();
+        assert_eq!(loc.files[0], expected_file(&file, NOT_ACKNOWLEDGED));
+        check_storage_fees(1, &FILE_SIZE, LOC_OWNER1);
     });
 }
 
@@ -1726,20 +1837,42 @@ fn nominated_and_select_issuer(loc_id: u32) {
 }
 
 #[test]
-fn it_adds_file_on_polkadot_transaction_loc_when_submitter_is_issuer() {
+fn it_adds_file_on_polkadot_transaction_loc_when_caller_is_owner_and_submitter_is_issuer() {
     new_test_ext().execute_with(|| {
         setup_default_balances();
         assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
         nominated_and_select_issuer(LOC_ID);
         set_balance(LOC_REQUESTER_ID, BALANCE_OK_FOR_FILES);
-        let file = File {
+        let file = FileParams {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file-nature".as_bytes().to_vec(),
             submitter: SupportedAccountId::Polkadot(ISSUER_ID1),
             size: FILE_SIZE,
         };
         assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()));
-        check_storage_fees(1, FILE_SIZE, LOC_REQUESTER_ID);
+        let loc = LogionLoc::loc(LOC_ID).unwrap();
+        assert_eq!(loc.files[0], expected_file(&file, ACKNOWLEDGED));
+        check_storage_fees(1, &FILE_SIZE, LOC_REQUESTER_ID);
+    });
+}
+
+#[test]
+fn it_adds_file_on_polkadot_transaction_loc_when_caller_is_submitter_and_issuer() {
+    new_test_ext().execute_with(|| {
+        setup_default_balances();
+        assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
+        nominated_and_select_issuer(LOC_ID);
+        set_balance(LOC_REQUESTER_ID, BALANCE_OK_FOR_FILES);
+        let file = FileParams {
+            hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
+            nature: "test-file-nature".as_bytes().to_vec(),
+            submitter: SupportedAccountId::Polkadot(ISSUER_ID1),
+            size: FILE_SIZE,
+        };
+        assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(ISSUER_ID1), LOC_ID, file.clone()));
+        let loc = LogionLoc::loc(LOC_ID).unwrap();
+        assert_eq!(loc.files[0], expected_file(&file, NOT_ACKNOWLEDGED));
+        check_storage_fees(1, &FILE_SIZE, LOC_REQUESTER_ID);
     });
 }
 
@@ -1748,7 +1881,7 @@ fn it_fails_adding_file_on_polkadot_transaction_loc_cannot_submit() {
     new_test_ext().execute_with(|| {
         setup_default_balances();
         assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, LOC_REQUESTER_ID));
-        let file = File {
+        let file = FileParams {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file-nature".as_bytes().to_vec(),
             submitter: SupportedAccountId::Polkadot(LOC_OWNER2),
@@ -1998,7 +2131,7 @@ fn it_adds_file_when_submitter_is_ethereum_requester() {
         let sponsored_account = SupportedAccountId::Other(OtherAccountId::Ethereum(requester));
         assert_ok!(LogionLoc::sponsor(RuntimeOrigin::signed(SPONSOR_ID), sponsorship_id, sponsored_account, LOC_OWNER1));
         assert_ok!(LogionLoc::create_other_identity_loc(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, OtherAccountId::Ethereum(requester), sponsorship_id));
-        let file = File {
+        let file = FileParams {
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
             nature: "test-file-nature".as_bytes().to_vec(),
             submitter: SupportedAccountId::Other(OtherAccountId::Ethereum(requester)),
@@ -2007,7 +2140,7 @@ fn it_adds_file_when_submitter_is_ethereum_requester() {
         set_balance(SPONSOR_ID, BALANCE_OK_FOR_FILES);
         assert_ok!(LogionLoc::add_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.clone()));
         let loc = LogionLoc::loc(LOC_ID).unwrap();
-        assert_eq!(loc.files[0], file);
-        check_storage_fees(1, file.size, SPONSOR_ID);
+        assert_eq!(loc.files[0], expected_file(&file, ACKNOWLEDGED));
+        check_storage_fees(1, &file.size, SPONSOR_ID);
     });
 }

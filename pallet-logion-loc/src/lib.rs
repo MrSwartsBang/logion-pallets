@@ -65,6 +65,15 @@ pub struct File<Hash, AccountId, EthereumAddress> {
     nature: Vec<u8>,
     submitter: SupportedAccountId<AccountId, EthereumAddress>,
     size: u32,
+    acknowledged: bool,
+}
+
+#[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
+pub struct FileParams<Hash, AccountId, EthereumAddress> {
+    hash: Hash,
+    nature: Vec<u8>,
+    submitter: SupportedAccountId<AccountId, EthereumAddress>,
+    size: u32,
 }
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
@@ -731,8 +740,8 @@ pub mod pallet {
                 let loc = <LocMap<T>>::get(&loc_id).unwrap();
                 let submitted_by_owner: bool = loc.owner == who;
                 if !submitted_by_owner && (
-                    !Self::can_submit(&loc_id, &loc, &SupportedAccountId::Polkadot(who.clone())) ||
-                        item.submitter != SupportedAccountId::Polkadot(who)
+                    item.submitter != SupportedAccountId::Polkadot(who) ||
+                    !Self::can_submit(&loc_id, &loc, &item.submitter)
                 ) {
                     Err(Error::<T>::Unauthorized)?
                 } else if loc.closed {
@@ -765,7 +774,7 @@ pub mod pallet {
         pub fn add_file(
             origin: OriginFor<T>,
             #[pallet::compact] loc_id: T::LocId,
-            file: File<<T as pallet::Config>::Hash, T::AccountId, T::EthereumAddress>
+            file: FileParams<<T as pallet::Config>::Hash, T::AccountId, T::EthereumAddress>
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
@@ -777,7 +786,11 @@ pub mod pallet {
                 Err(Error::<T>::NotFound)?
             } else {
                 let loc = <LocMap<T>>::get(&loc_id).unwrap();
-                if loc.owner != who {
+                let submitted_by_owner: bool = loc.owner == who;
+                if !submitted_by_owner && (
+                    file.submitter != SupportedAccountId::Polkadot(who) ||
+                        !Self::can_submit(&loc_id, &loc, &file.submitter)
+                ) {
                     Err(Error::<T>::Unauthorized)?
                 } else if loc.closed {
                     Err(Error::<T>::CannotMutate)?
@@ -802,7 +815,13 @@ pub mod pallet {
                     Self::apply_file_storage_fee(fee_payer, 1, file.size)?;
                     <LocMap<T>>::mutate(loc_id, |loc| {
                         let mutable_loc = loc.as_mut().unwrap();
-                        mutable_loc.files.push(file);
+                        mutable_loc.files.push(File {
+                            hash: file.hash,
+                            nature: file.nature,
+                            submitter: file.submitter,
+                            size: file.size,
+                            acknowledged: submitted_by_owner,
+                        });
                     });
                     Ok(().into())
                 }
@@ -1189,6 +1208,40 @@ pub mod pallet {
                     <LocMap<T>>::mutate(loc_id, |loc| {
                         let mutable_loc = loc.as_mut().unwrap();
                         mutable_loc.metadata[item_index].acknowledged = true;
+                    });
+                    Ok(().into())
+                }
+            }
+        }
+
+        /// Acknowledge a file.
+        #[pallet::call_index(22)]
+        #[pallet::weight(T::WeightInfo::acknowledge_file())]
+        pub fn acknowledge_file(
+            origin: OriginFor<T>,
+            #[pallet::compact] loc_id: T::LocId,
+            hash: <T as pallet::Config>::Hash,
+        ) -> DispatchResultWithPostInfo {
+            let who = T::IsLegalOfficer::ensure_origin(origin.clone())?;
+
+            if !<LocMap<T>>::contains_key(&loc_id) {
+                Err(Error::<T>::NotFound)?
+            } else {
+                let loc = <LocMap<T>>::get(&loc_id).unwrap();
+                if loc.owner != who {
+                    Err(Error::<T>::Unauthorized)?
+                }
+                let option_item_index = loc.files.iter().position(|item| item.hash == hash);
+                if option_item_index.is_none() {
+                    Err(Error::<T>::ItemNotFound)?
+                } else {
+                    let item_index = option_item_index.unwrap();
+                    if loc.files[item_index].acknowledged {
+                        Err(Error::<T>::ItemAlreadyAcknowledged)?
+                    }
+                    <LocMap<T>>::mutate(loc_id, |loc| {
+                        let mutable_loc = loc.as_mut().unwrap();
+                        mutable_loc.files[item_index].acknowledged = true;
                     });
                     Ok(().into())
                 }

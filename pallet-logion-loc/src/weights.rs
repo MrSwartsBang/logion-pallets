@@ -56,6 +56,7 @@ pub trait WeightInfo {
     fn create_other_identity_loc() -> Weight;
     fn sponsor() -> Weight;
     fn acknowledge_metadata() -> Weight;
+    fn acknowledge_file() -> Weight;
 }
 
 /// Weights for pallet_logion_loc using the Substrate node and recommended hardware.
@@ -157,6 +158,12 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().reads(1))
             .saturating_add(T::DbWeight::get().writes(1))
     }
+
+    fn acknowledge_file() -> Weight {
+        Weight::from_parts(11_979_000, 0)
+            .saturating_add(T::DbWeight::get().reads(1))
+            .saturating_add(T::DbWeight::get().writes(1))
+    }
 }
 
 // For backwards compatibility and tests
@@ -252,6 +259,11 @@ impl WeightInfo for () {
             .saturating_add(RocksDbWeight::get().writes(1))
     }
     fn acknowledge_metadata() -> Weight {
+        Weight::from_parts(11_979_000, 0)
+            .saturating_add(RocksDbWeight::get().reads(1))
+            .saturating_add(RocksDbWeight::get().writes(1))
+    }
+    fn acknowledge_file() -> Weight {
         Weight::from_parts(11_979_000, 0)
             .saturating_add(RocksDbWeight::get().reads(1))
             .saturating_add(RocksDbWeight::get().writes(1))
