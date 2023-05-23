@@ -1197,6 +1197,10 @@ pub mod pallet {
                 let loc = <LocMap<T>>::get(&loc_id).unwrap();
                 if loc.owner != who {
                     Err(Error::<T>::Unauthorized)?
+                } else if loc.closed {
+                    Err(Error::<T>::CannotMutate)?
+                } else if loc.void_info.is_some() {
+                    Err(Error::<T>::CannotMutateVoid)?
                 }
                 let option_item_index = loc.metadata.iter().position(|item| item.name == name);
                 if option_item_index.is_none() {
@@ -1231,6 +1235,10 @@ pub mod pallet {
                 let loc = <LocMap<T>>::get(&loc_id).unwrap();
                 if loc.owner != who {
                     Err(Error::<T>::Unauthorized)?
+                } else if loc.closed {
+                    Err(Error::<T>::CannotMutate)?
+                } else if loc.void_info.is_some() {
+                    Err(Error::<T>::CannotMutateVoid)?
                 }
                 let option_item_index = loc.files.iter().position(|item| item.hash == hash);
                 if option_item_index.is_none() {
