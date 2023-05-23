@@ -558,11 +558,12 @@ pub mod pallet {
         V10AddLocFileSize,
         V11EnableEthereumSubmitter,
         V12Sponsorship,
+        V13AcknowledgeItems,
     }
 
     impl Default for StorageVersion {
         fn default() -> StorageVersion {
-            return StorageVersion::V11EnableEthereumSubmitter;
+            return StorageVersion::V12Sponsorship;
         }
     }
 
