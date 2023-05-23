@@ -535,6 +535,8 @@ pub mod pallet {
         ItemNotFound,
         /// Target Item (Metadata or File) is already acknowledged
         ItemAlreadyAcknowledged,
+        /// There is still at least one Unacknowledged Item (Metadata or File)
+        CannotCloseUnacknowledged,
     }
 
     #[pallet::hooks]
@@ -1515,6 +1517,8 @@ pub mod pallet {
                     Err(Error::<T>::CannotMutateVoid)?
                 } else if loc.closed {
                     Err(Error::<T>::AlreadyClosed)?
+                } else if Self::has_unacknowledged_items(&loc) {
+                    Err(Error::<T>::CannotCloseUnacknowledged)?
                 } else {
                     <LocMap<T>>::mutate(loc_id, |loc| {
                         let mutable_loc = loc.as_mut().unwrap();
@@ -1525,6 +1529,17 @@ pub mod pallet {
                     Self::deposit_event(Event::LocClosed(loc_id));
                     Ok(().into())
                 }
+            }
+        }
+
+        fn has_unacknowledged_items(loc: &LegalOfficerCaseOf<T>) -> bool {
+            let unacknowledged_files = loc.files.iter()
+                .find(|file| { !file.acknowledged }).is_some();
+            if unacknowledged_files {
+                true
+            } else {
+                loc.metadata.iter()
+                    .find(|item| { !item.acknowledged }).is_some()
             }
         }
 

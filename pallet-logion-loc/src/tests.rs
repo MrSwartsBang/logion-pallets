@@ -256,11 +256,10 @@ fn it_fails_to_acknowledge_metadata_when_unauthorized_caller() {
 }
 
 #[test]
-fn it_fails_to_acknowledge_metadata_when_loc_closed() {
+fn it_fails_to_close_loc_with_unacknowledged_metadata() {
     new_test_ext().execute_with(|| {
-        let metadata = create_loc_with_metadata_from_requester();
-        assert_ok!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
-        assert_err!(LogionLoc::acknowledge_metadata(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, metadata.name.clone()), Error::<Test>::CannotMutate);
+        create_loc_with_metadata_from_requester();
+        assert_err!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID), Error::<Test>::CannotCloseUnacknowledged);
     });
 }
 
@@ -472,11 +471,10 @@ fn it_fails_to_acknowledge_file_when_unauthorized_caller() {
 }
 
 #[test]
-fn it_fails_to_acknowledge_file_when_loc_closed() {
+fn it_fails_to_close_loc_with_unacknowledged_file() {
     new_test_ext().execute_with(|| {
-        let file = create_loc_with_file_from_requester();
-        assert_ok!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
-        assert_err!(LogionLoc::acknowledge_file(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, file.hash.clone()), Error::<Test>::CannotMutate);
+        create_loc_with_file_from_requester();
+        assert_err!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID), Error::<Test>::CannotCloseUnacknowledged);
     });
 }
 
