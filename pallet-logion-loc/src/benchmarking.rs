@@ -43,7 +43,7 @@ benchmarks! {
     add_file {
         let caller = <T as crate::Config>::CreateOrigin::successful_origin().into().ok().unwrap();
         let loc_id = Default::default();
-        let file = File {
+        let file = FileParams {
             hash: Default::default(),
             nature: vec![1u8, 2u8, 3u8],
             submitter: Default::default(),
