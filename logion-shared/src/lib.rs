@@ -5,7 +5,9 @@ use frame_support::{
     Parameter,
     traits::{EnsureOrigin, UnfilteredDispatchable, Imbalance},
 };
+use frame_support::codec::{Decode, Encode};
 use frame_support::dispatch::DispatchResultWithPostInfo;
+use frame_support::scale_info::TypeInfo;
 use frame_support::sp_runtime::Percent;
 use frame_support::traits::tokens::Balance;
 use frame_system::{ensure_signed, RawOrigin};
@@ -137,10 +139,16 @@ pub trait RewardDistributor<I: Imbalance<B>, B: Balance> {
 
 pub type EuroCent = u32;
 
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo, Copy)]
+pub enum Beneficiary<AccountId> {
+    Treasury,
+    LegalOfficer(AccountId),
+}
+
 pub trait LegalFee<I: Imbalance<B>, B: Balance, LocType, AccountId> {
 
     fn get_legal_fee(loc_type: LocType) -> EuroCent;
 
     /// Determine, distribute to, and return the beneficiary of Legal fee.
-    fn distribute(amount: I, loc_type: LocType, loc_owner: AccountId) -> AccountId;
+    fn distribute(amount: I, loc_type: LocType, loc_owner: AccountId) -> Beneficiary<AccountId>;
 }
