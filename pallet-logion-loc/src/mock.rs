@@ -1,5 +1,5 @@
 use crate::{self as pallet_loc, LocType, NegativeImbalanceOf, RequesterOf};
-use logion_shared::{DistributionKey, EuroCent, IsLegalOfficer, LegalFee, RewardDistributor};
+use logion_shared::{Beneficiary, DistributionKey, EuroCent, IsLegalOfficer, LegalFee, RewardDistributor};
 use sp_core::hash::H256;
 use frame_support::{construct_runtime, parameter_types, traits::{EnsureOrigin, Currency}};
 use sp_runtime::{traits::{BlakeTwo256, IdentityLookup}, testing::Header, Percent};
@@ -161,13 +161,13 @@ impl LegalFee<NegativeImbalanceOf<Test>, Balance, LocType, AccountId> for LegalF
         }
     }
 
-    fn distribute(amount: NegativeImbalanceOf<Test>, loc_type: LocType, loc_owner: AccountId) -> AccountId {
+    fn distribute(amount: NegativeImbalanceOf<Test>, loc_type: LocType, loc_owner: AccountId) -> Beneficiary<AccountId> {
 
-        let beneficiary = match loc_type {
-            LocType::Identity => TREASURY_ACCOUNT_ID,
-            _ => loc_owner,
+        let (beneficiary, target) = match loc_type {
+            LocType::Identity => (Beneficiary::Treasury, TREASURY_ACCOUNT_ID),
+            _ => (Beneficiary::LegalOfficer(loc_owner), loc_owner),
         };
-        Balances::resolve_creating(&beneficiary, amount);
+        Balances::resolve_creating(&target, amount);
         beneficiary
     }
 }

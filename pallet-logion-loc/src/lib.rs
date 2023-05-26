@@ -252,7 +252,7 @@ pub mod pallet {
     };
     use codec::HasCompact;
     use frame_support::traits::{Currency};
-    use logion_shared::{LocQuery, LocValidity, IsLegalOfficer, RewardDistributor, DistributionKey, LegalFee, EuroCent};
+    use logion_shared::{LocQuery, LocValidity, IsLegalOfficer, RewardDistributor, DistributionKey, LegalFee, EuroCent, Beneficiary};
     use super::*;
     pub use crate::weights::WeightInfo;
 
@@ -438,8 +438,8 @@ pub mod pallet {
         SponsorshipCreated(T::SponsorshipId, T::AccountId, SupportedAccountId<T::AccountId, T::EthereumAddress>),
         /// Issued when a sponsorship was successfully withdrawn [sponsorship_id, sponsor, sponsored_account]
         SponsorshipWithdrawn(T::SponsorshipId, T::AccountId, SupportedAccountId<T::AccountId, T::EthereumAddress>),
-        /// Issued when Legal Fee is withdrawn. [payerAccountId, beneficiaryAccountId, legalFee]
-        LegalFeeWithdrawn(T::AccountId, T::AccountId, BalanceOf<T>),
+        /// Issued when Legal Fee is withdrawn. [payerAccountId, beneficiary, legalFee]
+        LegalFeeWithdrawn(T::AccountId, Beneficiary<T::AccountId>, BalanceOf<T>),
     }
 
     #[pallet::error]

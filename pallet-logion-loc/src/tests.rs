@@ -6,7 +6,7 @@ use sp_core::{H256, H160};
 use sp_runtime::traits::BlakeTwo256;
 use sp_runtime::traits::Hash;
 
-use logion_shared::{LocQuery, LocValidity};
+use logion_shared::{Beneficiary, LocQuery, LocValidity};
 
 use crate::{Error, File, LegalOfficerCase, LocLink, LocType, MetadataItem, CollectionItem, CollectionItemFile, CollectionItemToken, mock::*, TermsAndConditionsElement, TokensRecordFile, UnboundedTokensRecordFileOf, VerifiedIssuer, Config, OtherAccountId, SupportedAccountId, MetadataItemParams, FileParams};
 use crate::Requester::{Account, OtherAccount};
@@ -381,11 +381,15 @@ fn check_storage_fees(num_of_files: u32, tot_size: &u32, payer: AccountId) {
     }));
 }
 
-fn check_legal_fees(expected_fees: Balance, payer: AccountId, beneficiary: AccountId) {
-    let credited_fees: Balance = get_free_balance(beneficiary)  - BALANCE_OK_FOR_LOC_CREATION;
+fn check_legal_fees(expected_fees: Balance, payer: AccountId, beneficiary_account: AccountId) {
+    let credited_fees: Balance = get_free_balance(beneficiary_account)  - BALANCE_OK_FOR_LOC_CREATION;
     assert_eq!(credited_fees, expected_fees);
     let debited_fees: Balance = BALANCE_OK_FOR_LOC_CREATION - get_free_balance(payer);
     assert_eq!(debited_fees, expected_fees);
+    let beneficiary = match beneficiary_account {
+        TREASURY_ACCOUNT_ID => Beneficiary::Treasury,
+        _ => Beneficiary::LegalOfficer(beneficiary_account)
+    };
     if expected_fees > 0 {
         System::assert_has_event(RuntimeEvent::LogionLoc(crate::Event::LegalFeeWithdrawn {
             0: payer,
