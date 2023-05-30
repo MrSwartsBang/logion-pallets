@@ -583,15 +583,17 @@ pub mod pallet {
         pub fn create_polkadot_identity_loc(
             origin: OriginFor<T>,
             #[pallet::compact] loc_id: T::LocId,
-            requester_account_id: T::AccountId,
+            legal_officer: T::AccountId,
         ) -> DispatchResultWithPostInfo {
-            let who = T::IsLegalOfficer::ensure_origin(origin.clone())?;
+            let requester_account_id = ensure_signed(origin)?;
 
-            if <LocMap<T>>::contains_key(&loc_id) {
+            if !T::IsLegalOfficer::is_legal_officer(&legal_officer) {
+                Err(Error::<T>::Unauthorized)?
+            } else if <LocMap<T>>::contains_key(&loc_id) {
                 Err(Error::<T>::AlreadyExists)?
             } else {
                 let requester = RequesterOf::<T>::Account(requester_account_id.clone());
-                let loc = Self::build_open_loc(&who, &requester, LocType::Identity, None);
+                let loc = Self::build_open_loc(&legal_officer, &requester, LocType::Identity, None);
 
                 Self::apply_legal_fee(&loc)?;
                 <LocMap<T>>::insert(loc_id, loc);
@@ -630,15 +632,17 @@ pub mod pallet {
         pub fn create_polkadot_transaction_loc(
             origin: OriginFor<T>,
             #[pallet::compact] loc_id: T::LocId,
-            requester_account_id: T::AccountId,
+            legal_officer: T::AccountId,
         ) -> DispatchResultWithPostInfo {
-            let who = T::IsLegalOfficer::ensure_origin(origin.clone())?;
+            let requester_account_id = ensure_signed(origin)?;
 
-            if <LocMap<T>>::contains_key(&loc_id) {
+            if !T::IsLegalOfficer::is_legal_officer(&legal_officer) {
+                Err(Error::<T>::Unauthorized)?
+            } else if <LocMap<T>>::contains_key(&loc_id) {
                 Err(Error::<T>::AlreadyExists)?
             } else {
                 let requester = RequesterOf::<T>::Account(requester_account_id.clone());
-                let loc = Self::build_open_loc(&who, &requester, LocType::Transaction, None);
+                let loc = Self::build_open_loc(&legal_officer, &requester, LocType::Transaction, None);
 
                 Self::apply_legal_fee(&loc)?;
                 <LocMap<T>>::insert(loc_id, loc);
@@ -688,14 +692,16 @@ pub mod pallet {
         pub fn create_collection_loc(
             origin: OriginFor<T>,
             #[pallet::compact] loc_id: T::LocId,
-            requester_account_id: T::AccountId,
+            legal_officer: T::AccountId,
             collection_last_block_submission: Option<T::BlockNumber>,
             collection_max_size: Option<u32>,
             collection_can_upload: bool,
         ) -> DispatchResultWithPostInfo {
-            let who = T::IsLegalOfficer::ensure_origin(origin.clone())?;
+            let requester_account_id = ensure_signed(origin)?;
 
-            if collection_last_block_submission.is_none() && collection_max_size.is_none() {
+            if !T::IsLegalOfficer::is_legal_officer(&legal_officer) {
+                Err(Error::<T>::Unauthorized)?
+            } else if collection_last_block_submission.is_none() && collection_max_size.is_none() {
                 Err(Error::<T>::CollectionHasNoLimit)?
             }
 
@@ -704,7 +710,7 @@ pub mod pallet {
             } else {
                 let requester = RequesterOf::<T>::Account(requester_account_id.clone());
                 let loc = Self::build_open_collection_loc(
-                    &who,
+                    &legal_officer,
                     &requester,
                     collection_last_block_submission,
                     collection_max_size,
@@ -1429,13 +1435,13 @@ pub mod pallet {
         }
 
         fn build_open_loc(
-            who: &T::AccountId,
+            legal_officer: &T::AccountId,
             requester: &RequesterOf<T>,
             loc_type: LocType,
             sponsorship_id: Option<T::SponsorshipId>,
         ) -> LegalOfficerCaseOf<T> {
             LegalOfficerCaseOf::<T> {
-                owner: who.clone(),
+                owner: legal_officer.clone(),
                 requester: requester.clone(),
                 metadata: Vec::new(),
                 files: Vec::new(),
