@@ -1,5 +1,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use sp_std::str::FromStr;
+use sp_std::fmt::Debug;
+
 use frame_support::codec::{Decode, Encode};
 use frame_support::dispatch::{DispatchResultWithPostInfo, Vec};
 use frame_support::error::BadOrigin;
@@ -22,29 +25,36 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 use frame_system::RawOrigin;
 
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+#[cfg(feature = "std")]
+pub trait GenesisRegion<Region>: Into<Region> {}
+
+#[cfg(feature = "std")]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo, serde::Serialize, serde::Deserialize)]
+pub struct GenesisHostData {
+    pub node_id: Option<PeerId>,
+    pub base_url: Option<Vec<u8>>,
+    pub region: String,
+}
+
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
-pub enum LegalOfficerData<AccountId> {
-    Host(HostData),
+pub enum LegalOfficerData<AccountId, Region> {
+    Host(HostData<Region>),
     Guest(AccountId),
 }
 
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub type LegalOfficerDataOf<T> = LegalOfficerData<
+    <T as frame_system::Config>::AccountId,
+    <T as Config>::Region,
+>;
+
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
-pub struct HostData {
+pub struct HostData<Region> {
     pub node_id: Option<PeerId>,
     pub base_url: Option<Vec<u8>>,
+    pub region: Region,
 }
 
-impl Default for HostData {
-
-    fn default() -> Self {
-        HostData {
-            node_id: Option::None,
-            base_url: Option::None,
-        }
-    }
-}
+pub type HostDataOf<T> = HostData<<T as Config>::Region>;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -67,6 +77,9 @@ pub mod pallet {
         /// The origin which can update a Logion Legal Officer's data (in addition to himself).
         type UpdateOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 
+        /// The Legal Officers region
+        type Region: frame_support::pallet_prelude::Member + frame_support::pallet_prelude::Parameter + Copy + FromStr + Default;
+
         /// The overarching event type.
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
     }
@@ -78,7 +91,15 @@ pub mod pallet {
     /// All LOs indexed by their account ID.
     #[pallet::storage]
     #[pallet::getter(fn legal_officer_set)]
-    pub type LegalOfficerSet<T> = StorageMap<_, Blake2_128Concat, <T as frame_system::Config>::AccountId, LegalOfficerData<<T as frame_system::Config>::AccountId>>;
+    pub type LegalOfficerSet<T> = StorageMap<
+        _,
+        Blake2_128Concat,
+        <T as frame_system::Config>::AccountId,
+        LegalOfficerData<
+            <T as frame_system::Config>::AccountId,
+            <T as pallet::Config>::Region,
+        >
+    >;
 
     /// The set of LO nodes.
     #[pallet::storage]
@@ -90,6 +111,7 @@ pub mod pallet {
         V1,
         V2AddOnchainSettings,
         V3GuestLegalOfficers,
+        V4Region,
     }
 
     impl Default for StorageVersion {
@@ -105,7 +127,7 @@ pub mod pallet {
 
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
-        pub legal_officers: Vec<(T::AccountId, LegalOfficerData<T::AccountId>)>,
+        pub legal_officers: Vec<(T::AccountId, GenesisHostData)>,
     }
 
     #[cfg(feature = "std")]
@@ -116,9 +138,22 @@ pub mod pallet {
     }
 
     #[pallet::genesis_build]
-    impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
+    impl<T: Config> GenesisBuild<T> for GenesisConfig<T>
+    where <T::Region as FromStr>::Err: std::fmt::Debug
+    {
         fn build(&self) {
-            Pallet::<T>::initialize_legal_officers(&self.legal_officers);
+            let legal_officers: Vec<(T::AccountId, HostData<T::Region>)> = self.legal_officers.iter().map(|data| {
+                let region: T::Region = FromStr::from_str(&data.1.region).unwrap();
+                (
+                    data.0.clone(),
+                    HostData {
+                        node_id: data.1.node_id.clone(),
+                        base_url: data.1.base_url.clone(),
+                        region,
+                    }
+                )
+            }).collect();
+            Pallet::<T>::initialize_legal_officers(&legal_officers);
         }
     }
 
@@ -151,6 +186,8 @@ pub mod pallet {
         HostCannotConvert,
         /// Guest cannot update
         GuestCannotUpdate,
+        /// LO cannot change region
+        CannotChangeRegion,
     }
 
     #[pallet::hooks]
@@ -165,7 +202,7 @@ pub mod pallet {
         pub fn add_legal_officer(
             origin: OriginFor<T>,
             legal_officer_id: T::AccountId,
-            data: LegalOfficerData<T::AccountId>,
+            data: LegalOfficerData<T::AccountId, T::Region>,
         ) -> DispatchResultWithPostInfo {
             T::AddOrigin::ensure_origin(origin)?;
             Self::do_add_legal_officer(
@@ -202,7 +239,7 @@ pub mod pallet {
         pub fn update_legal_officer(
             origin: OriginFor<T>,
             legal_officer_id: T::AccountId,
-            data: LegalOfficerData<T::AccountId>,
+            data: LegalOfficerData<T::AccountId, T::Region>,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed_or_root(origin.clone())?;
             if who.is_some() && who.clone().unwrap() != legal_officer_id {
@@ -231,6 +268,12 @@ pub mod pallet {
                     },
                 }
 
+                let source_region = Self::get_region(&some_to_update);
+                let dest_region = Self::get_region(&data);
+                if source_region != dest_region {
+                    Err(Error::<T>::CannotChangeRegion)?
+                }
+
                 <LegalOfficerSet<T>>::set(legal_officer_id.clone(), Some(data.clone()));
                 match some_to_update {
                     LegalOfficerData::Guest(_) => match data {
@@ -252,14 +295,16 @@ pub mod pallet {
 pub type OuterOrigin<T> = <T as frame_system::Config>::RuntimeOrigin;
 
 impl<T: Config> Pallet<T> {
-    fn initialize_legal_officers(legal_officers: &Vec<(T::AccountId, LegalOfficerData<T::AccountId>)>) {
+    fn initialize_legal_officers(legal_officers: &Vec<(T::AccountId, HostData<T::Region>)>)
+    where <T::Region as FromStr>::Err: Debug
+    {
         for legal_officer in legal_officers {
-            LegalOfficerSet::<T>::insert::<&T::AccountId, &LegalOfficerData<T::AccountId>>(&(legal_officer.0), &(legal_officer.1));
+            LegalOfficerSet::<T>::insert::<&T::AccountId, &LegalOfficerData<T::AccountId, T::Region>>(&(legal_officer.0), &LegalOfficerData::Host(legal_officer.1.clone()));
             LegalOfficerNodes::<T>::set(BTreeSet::new());
         }
     }
 
-    fn try_reset_legal_officer_nodes(added_or_removed_data: &LegalOfficerData<T::AccountId>) -> Result<(), Error<T>> {
+    fn try_reset_legal_officer_nodes(added_or_removed_data: &LegalOfficerData<T::AccountId, T::Region>) -> Result<(), Error<T>> {
         match added_or_removed_data {
             LegalOfficerData::Host(_) => Self::reset_legal_officer_nodes(),
             _ => Ok(()),
@@ -297,7 +342,7 @@ impl<T: Config> Pallet<T> {
         false
     }
 
-    fn ensure_host_if_guest(data: &LegalOfficerData<T::AccountId>) -> Result<(), Error<T>> {
+    fn ensure_host_if_guest(data: &LegalOfficerData<T::AccountId, T::Region>) -> Result<(), Error<T>> {
         match &data {
             LegalOfficerData::Guest(host) => Self::ensure_host(host),
             _ => Ok(()),
@@ -318,7 +363,7 @@ impl<T: Config> Pallet<T> {
 
     fn do_add_legal_officer(
         legal_officer_id: T::AccountId,
-        data: LegalOfficerData<T::AccountId>,
+        data: LegalOfficerData<T::AccountId, T::Region>,
     ) -> DispatchResultWithPostInfo {
         if <LegalOfficerSet<T>>::contains_key(&legal_officer_id) {
             Err(Error::<T>::AlreadyExists)?
@@ -329,6 +374,13 @@ impl<T: Config> Pallet<T> {
 
             Self::deposit_event(Event::LoAdded(legal_officer_id));
             Ok(().into())
+        }
+    }
+
+    fn get_region(data: &LegalOfficerData<T::AccountId, T::Region>) -> T::Region {
+        match data {
+            LegalOfficerData::Guest(host_account_id) => Self::get_region(&LegalOfficerSet::<T>::get(host_account_id).unwrap()),
+            LegalOfficerData::Host(host_data) => host_data.region,
         }
     }
 }

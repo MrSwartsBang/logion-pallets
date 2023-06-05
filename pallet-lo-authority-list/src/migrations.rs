@@ -4,20 +4,45 @@ use frame_support::traits::OnRuntimeUpgrade;
 
 use crate::{Config, PalletStorageVersion, pallet::StorageVersion};
 
-pub mod v3 {
+pub mod v4 {
     use super::*;
-    use crate::{LegalOfficerSet, LegalOfficerData, HostData};
+    use crate::*;
 
-    pub struct ConvertIntoHostData<T>(sp_std::marker::PhantomData<T>);
-    impl<T: Config> OnRuntimeUpgrade for ConvertIntoHostData<T> {
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
+    pub enum LegalOfficerDataV3<AccountId> {
+        Host(HostDataV3),
+        Guest(AccountId),
+    }
+
+    pub type LegalOfficerDataV3Of<T> = LegalOfficerDataV3<
+        <T as frame_system::Config>::AccountId,
+    >;
+
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
+    pub struct HostDataV3 {
+        pub node_id: Option<PeerId>,
+        pub base_url: Option<Vec<u8>>,
+    }
+
+    pub struct AddRegion<T>(sp_std::marker::PhantomData<T>);
+    impl<T: Config> OnRuntimeUpgrade for AddRegion<T> {
 
         fn on_runtime_upgrade() -> Weight {
             super::do_storage_upgrade::<T, _>(
-                StorageVersion::V2AddOnchainSettings,
                 StorageVersion::V3GuestLegalOfficers,
-                "ConvertIntoHostData",
+                StorageVersion::V4Region,
+                "AddRegion",
                 || {
-                    LegalOfficerSet::<T>::translate_values(|host_data: HostData| Some(LegalOfficerData::Host(host_data)))
+                    LegalOfficerSet::<T>::translate_values(|legal_officer_data: LegalOfficerDataV3Of<T>| {
+                        match legal_officer_data {
+                            LegalOfficerDataV3::Guest(guest_data) => Some(LegalOfficerData::Guest(guest_data)),
+                            LegalOfficerDataV3::Host(host_data) => Some(LegalOfficerData::Host(HostData {
+                                node_id: host_data.node_id.clone(),
+                                base_url: host_data.base_url.clone(),
+                                region: Default::default(),
+                            })),
+                        }
+                    })
                 }
             )
         }

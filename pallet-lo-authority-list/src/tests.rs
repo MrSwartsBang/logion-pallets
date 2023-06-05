@@ -1,4 +1,4 @@
-use crate::{mock::*, LegalOfficerData, Error, HostData};
+use crate::{mock::*, LegalOfficerData, Error, HostData, LegalOfficerDataOf, HostDataOf};
 use frame_support::{assert_err, assert_ok, error::BadOrigin};
 use logion_shared::IsLegalOfficer;
 use sp_core::OpaquePeerId;
@@ -8,16 +8,16 @@ const ANOTHER_ID: u64 = 2;
 const LEGAL_OFFICER_ID2: u64 = 3;
 const LEGAL_OFFICER_ID3: u64 = 4;
 
-impl Default for LegalOfficerData<<Test as frame_system::Config>::AccountId> {
+impl Default for LegalOfficerDataOf<Test> {
     fn default() -> Self {
         LegalOfficerData::Host(Default::default())
     }
 }
 
-impl TryFrom<LegalOfficerData<<Test as frame_system::Config>::AccountId>> for HostData {
+impl TryFrom<LegalOfficerDataOf<Test>> for HostDataOf<Test> {
     type Error = ();
 
-    fn try_from(value: LegalOfficerData<<Test as frame_system::Config>::AccountId>) -> Result<Self, Self::Error> {
+    fn try_from(value: LegalOfficerDataOf<Test>) -> Result<Self, Self::Error> {
         match value {
             LegalOfficerData::Host(data) => Ok(data),
             _ => Err(())
@@ -114,8 +114,9 @@ fn it_lets_host_update() {
         assert_ok!(LoAuthorityList::update_legal_officer(RuntimeOrigin::signed(LEGAL_OFFICER_ID), LEGAL_OFFICER_ID, LegalOfficerData::Host(HostData {
             node_id: Option::Some(node_id.clone()),
             base_url: Option::Some(base_url.clone()),
+            region: Region::Europe,
         })));
-        let data: HostData = LoAuthorityList::legal_officer_set(LEGAL_OFFICER_ID).unwrap().try_into().unwrap();
+        let data: HostDataOf<Test> = LoAuthorityList::legal_officer_set(LEGAL_OFFICER_ID).unwrap().try_into().unwrap();
         assert_eq!(data.base_url.unwrap(), base_url);
         assert_eq!(data.node_id.unwrap(), node_id);
         assert_eq!(LoAuthorityList::legal_officer_nodes().len(), 1);
@@ -132,8 +133,9 @@ fn it_lets_superuser_update() {
         assert_ok!(LoAuthorityList::update_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID, LegalOfficerData::Host(HostData {
             node_id: Option::Some(node_id.clone()),
             base_url: Option::Some(base_url.clone()),
+            region: Region::Europe,
         })));
-        let data: HostData = LoAuthorityList::legal_officer_set(LEGAL_OFFICER_ID).unwrap().try_into().unwrap();
+        let data: HostDataOf<Test> = LoAuthorityList::legal_officer_set(LEGAL_OFFICER_ID).unwrap().try_into().unwrap();
         assert_eq!(data.base_url.unwrap(), base_url);
         assert_eq!(data.node_id.unwrap(), node_id);
         assert_eq!(LoAuthorityList::legal_officer_nodes().len(), 1);
@@ -149,12 +151,14 @@ fn it_fails_add_if_peer_id_already_in_use() {
         assert_ok!(LoAuthorityList::add_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID, LegalOfficerData::Host(HostData {
             node_id: Option::Some(node_id1.clone()),
             base_url: Option::Some(base_url1.clone()),
+            region: Region::Europe,
         })));
 
         let base_url2 = "https://node2.logion.network".as_bytes().to_vec();
         assert_err!(LoAuthorityList::add_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID2, LegalOfficerData::Host(HostData {
             base_url: Option::Some(base_url2.clone()),
             node_id: Option::Some(node_id1.clone()),
+            region: Region::Europe,
         })), Error::<Test>::PeerIdAlreadyInUse);
     });
 }
@@ -167,6 +171,7 @@ fn it_fails_update_if_peer_id_already_in_use() {
         assert_ok!(LoAuthorityList::add_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID, LegalOfficerData::Host(HostData {
             node_id: Option::Some(node_id1.clone()),
             base_url: Option::Some(base_url1.clone()),
+            region: Region::Europe,
         })));
 
         let base_url2 = "https://node2.logion.network".as_bytes().to_vec();
@@ -174,6 +179,7 @@ fn it_fails_update_if_peer_id_already_in_use() {
         assert_ok!(LoAuthorityList::add_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID2, LegalOfficerData::Host(HostData {
             base_url: Option::Some(base_url2.clone()),
             node_id: Option::Some(node_id2.clone()),
+            region: Region::Europe,
         })));
         assert_eq!(LoAuthorityList::legal_officer_nodes().len(), 2);
         assert!(LoAuthorityList::legal_officer_nodes().contains(&node_id1));
@@ -182,6 +188,7 @@ fn it_fails_update_if_peer_id_already_in_use() {
         assert_err!(LoAuthorityList::update_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID2, LegalOfficerData::Host(HostData {
             base_url: Option::Some(base_url2.clone()),
             node_id: Option::Some(node_id1.clone()),
+            region: Region::Europe,
         })), Error::<Test>::PeerIdAlreadyInUse);
     });
 }
@@ -194,6 +201,7 @@ fn it_updates_nodes_on_remove() {
         assert_ok!(LoAuthorityList::add_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID, LegalOfficerData::Host(HostData {
             node_id: Option::Some(node_id.clone()),
             base_url: Option::Some(base_url.clone()),
+            region: Region::Europe,
         })));
         assert_ok!(LoAuthorityList::remove_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID));
         assert!(LoAuthorityList::legal_officer_nodes().is_empty());
@@ -208,11 +216,13 @@ fn it_updates_nodes_on_update() {
         assert_ok!(LoAuthorityList::add_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID, LegalOfficerData::Host(HostData {
             node_id: Option::Some(node_id1.clone()),
             base_url: Option::Some(base_url.clone()),
+            region: Region::Europe,
         })));
         let node_id2 = OpaquePeerId(bs58::decode("12D3KooWQYV9dGMFoRzNStwpXztXaBUjtPqi6aU76ZgUriHhKust").into_vec().unwrap());
         assert_ok!(LoAuthorityList::update_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID, LegalOfficerData::Host(HostData {
             node_id: Option::Some(node_id2.clone()),
             base_url: Option::Some(base_url.clone()),
+            region: Region::Europe,
         })));
 
         assert_eq!(LoAuthorityList::legal_officer_nodes().len(), 1);
@@ -233,6 +243,7 @@ fn setup_host_and_guest() {
     let host_data = LegalOfficerData::Host(HostData {
         node_id: Option::Some(OpaquePeerId(bs58::decode("12D3KooWBmAwcd4PJNJvfV89HwE48nwkRmAgo8Vy3uQEyNNHBox2").into_vec().unwrap())),
         base_url: Option::Some("https://node.logion.network".as_bytes().to_vec()),
+        region: Region::Europe,
     });
     assert_ok!(LoAuthorityList::add_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID, host_data));
     assert_ok!(LoAuthorityList::add_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID2, LegalOfficerData::Guest(LEGAL_OFFICER_ID)));
@@ -255,6 +266,7 @@ fn it_turns_guest_into_host() {
         let host_data2 = LegalOfficerData::Host(HostData {
             node_id: Option::Some(OpaquePeerId(bs58::decode("12D3KooWQYV9dGMFoRzNStwpXztXaBUjtPqi6aU76ZgUriHhKust").into_vec().unwrap())),
             base_url: Option::Some("https://node2.logion.network".as_bytes().to_vec()),
+            region: Region::Europe,
         });
         assert_ok!(LoAuthorityList::update_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID2, host_data2));
         assert!(LoAuthorityList::legal_officer_set(LEGAL_OFFICER_ID2).is_some());
@@ -266,9 +278,16 @@ fn it_turns_guest_into_host() {
 fn it_turns_host_into_guest() {
     new_test_ext().execute_with(|| {
         setup_hosts();
-        assert_ok!(LoAuthorityList::update_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID2, LegalOfficerData::Guest(LEGAL_OFFICER_ID)));
+        let host_data = LegalOfficerData::Host(HostData {
+            node_id: Option::Some(OpaquePeerId(bs58::decode("12D3KooWJvyP3VJYymTqG7eH4PM5rN4T2agk5cdNCfNymAqwqcvZ").into_vec().unwrap())),
+            base_url: Option::Some("https://node3.logion.network".as_bytes().to_vec()),
+            region: Region::Other,
+        });
+        assert_ok!(LoAuthorityList::add_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID3, host_data));
+        assert_eq!(LoAuthorityList::legal_officer_nodes().len(), 3);
+        assert_ok!(LoAuthorityList::update_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID2, LegalOfficerData::Guest(LEGAL_OFFICER_ID3)));
         assert!(LoAuthorityList::legal_officer_set(LEGAL_OFFICER_ID2).is_some());
-        assert_eq!(LoAuthorityList::legal_officer_nodes().len(), 1);
+        assert_eq!(LoAuthorityList::legal_officer_nodes().len(), 2);
     });
 }
 
@@ -276,11 +295,13 @@ fn setup_hosts() {
     let host_data = LegalOfficerData::Host(HostData {
         node_id: Option::Some(OpaquePeerId(bs58::decode("12D3KooWBmAwcd4PJNJvfV89HwE48nwkRmAgo8Vy3uQEyNNHBox2").into_vec().unwrap())),
         base_url: Option::Some("https://node1.logion.network".as_bytes().to_vec()),
+        region: Region::Europe,
     });
     assert_ok!(LoAuthorityList::add_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID, host_data));
     let host_data2 = LegalOfficerData::Host(HostData {
         node_id: Option::Some(OpaquePeerId(bs58::decode("12D3KooWQYV9dGMFoRzNStwpXztXaBUjtPqi6aU76ZgUriHhKust").into_vec().unwrap())),
         base_url: Option::Some("https://node2.logion.network".as_bytes().to_vec()),
+        region: Region::Other,
     });
     assert_ok!(LoAuthorityList::add_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID2, host_data2));
 }
@@ -292,6 +313,7 @@ fn it_fails_turning_host_with_guest_into_guest() {
         let host_data3 = LegalOfficerData::Host(HostData {
             node_id: Option::Some(OpaquePeerId(bs58::decode("12D3KooWJvyP3VJYymTqG7eH4PM5rN4T2agk5cdNCfNymAqwqcvZ").into_vec().unwrap())),
             base_url: Option::Some("https://node3.logion.network".as_bytes().to_vec()),
+            region: Region::Europe,
         });
         assert_ok!(LoAuthorityList::add_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID3, host_data3));
         assert_err!(LoAuthorityList::update_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID, LegalOfficerData::Guest(LEGAL_OFFICER_ID3)),
@@ -322,6 +344,7 @@ fn it_fails_adding_guest_with_unknown_host() {
         let host_data = LegalOfficerData::Host(HostData {
             node_id: Option::Some(OpaquePeerId(bs58::decode("12D3KooWBmAwcd4PJNJvfV89HwE48nwkRmAgo8Vy3uQEyNNHBox2").into_vec().unwrap())),
             base_url: Option::Some("https://node.logion.network".as_bytes().to_vec()),
+            region: Region::Europe,
         });
         assert_ok!(LoAuthorityList::add_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID, host_data));
         assert_err!(LoAuthorityList::add_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID2, LegalOfficerData::Guest(LEGAL_OFFICER_ID3)),
@@ -344,5 +367,48 @@ fn it_fails_if_host_converts_to_guest() {
         setup_hosts();
         assert_err!(LoAuthorityList::update_legal_officer(RuntimeOrigin::signed(LEGAL_OFFICER_ID), LEGAL_OFFICER_ID, LegalOfficerData::Guest(LEGAL_OFFICER_ID2)),
             Error::<Test>::HostCannotConvert);
+    });
+}
+
+#[test]
+fn it_fails_changing_host_host_region() {
+    new_test_ext().execute_with(|| {
+        setup_hosts();
+        assert_err!(LoAuthorityList::update_legal_officer(RuntimeOrigin::signed(LEGAL_OFFICER_ID), LEGAL_OFFICER_ID, LegalOfficerData::Host(HostData {
+            node_id: Option::Some(OpaquePeerId(bs58::decode("12D3KooWBmAwcd4PJNJvfV89HwE48nwkRmAgo8Vy3uQEyNNHBox2").into_vec().unwrap())),
+            base_url: Option::Some("https://node1.logion.network".as_bytes().to_vec()),
+            region: Region::Other,
+        })), Error::<Test>::CannotChangeRegion);
+    });
+}
+
+#[test]
+fn it_fails_changing_guest_host_region() {
+    new_test_ext().execute_with(|| {
+        setup_host_and_guest();
+        let host_data = LegalOfficerData::Host(HostData {
+            node_id: Option::Some(OpaquePeerId(bs58::decode("12D3KooWQYV9dGMFoRzNStwpXztXaBUjtPqi6aU76ZgUriHhKust").into_vec().unwrap())),
+            base_url: Option::Some("https://node2.logion.network".as_bytes().to_vec()),
+            region: Region::Other,
+        });
+        assert_ok!(LoAuthorityList::add_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID3, host_data));
+        assert_err!(LoAuthorityList::update_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID2, LegalOfficerData::Guest(LEGAL_OFFICER_ID3)), Error::<Test>::CannotChangeRegion);
+    });
+}
+
+#[test]
+fn it_fails_changing_host_guest_region() {
+    new_test_ext().execute_with(|| {
+        setup_hosts();
+        assert_err!(LoAuthorityList::update_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID2, LegalOfficerData::Guest(LEGAL_OFFICER_ID)), Error::<Test>::CannotChangeRegion);
+    });
+}
+
+#[test]
+fn it_fails_changing_guest_guest_region() {
+    new_test_ext().execute_with(|| {
+        setup_hosts();
+        assert_ok!(LoAuthorityList::add_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID3, LegalOfficerData::Guest(LEGAL_OFFICER_ID)));
+        assert_err!(LoAuthorityList::update_legal_officer(RuntimeOrigin::root(), LEGAL_OFFICER_ID3, LegalOfficerData::Guest(LEGAL_OFFICER_ID2)), Error::<Test>::CannotChangeRegion);
     });
 }
