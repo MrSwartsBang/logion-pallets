@@ -1,10 +1,11 @@
-use crate as pallet_lo_authority_list;
+use crate::{self as pallet_lo_authority_list, HostData, HostDataOf};
 use sp_core::hash::H256;
-use frame_support::parameter_types;
+use frame_support::{parameter_types, codec::{Encode, Decode}};
 use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup}, testing::Header,
 };
 use frame_system::{self as system, EnsureRoot};
+use scale_info::TypeInfo;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -52,10 +53,47 @@ impl system::Config for Test {
     type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo, Copy)]
+pub enum Region {
+    Europe,
+    Other,
+}
+
+impl core::str::FromStr for Region {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Europe" => Ok(Region::Europe),
+            "Other" => Ok(Region::Other),
+            _ => Err(()),
+        }
+    }
+}
+
+impl Default for Region {
+
+    fn default() -> Self {
+        Self::Europe
+    }
+}
+
+impl Default for HostDataOf<Test> {
+
+    fn default() -> Self {
+        return HostData {
+            node_id: None,
+            base_url: None,
+            region: Region::Europe,
+        }
+    }
+}
+
 impl pallet_lo_authority_list::Config for Test {
     type AddOrigin = EnsureRoot<u64>;
     type RemoveOrigin = EnsureRoot<u64>;
     type UpdateOrigin = EnsureRoot<u64>;
+    type Region = Region;
     type RuntimeEvent = RuntimeEvent;
 }
 
