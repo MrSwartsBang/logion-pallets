@@ -95,10 +95,7 @@ pub mod pallet {
         _,
         Blake2_128Concat,
         <T as frame_system::Config>::AccountId,
-        LegalOfficerData<
-            <T as frame_system::Config>::AccountId,
-            <T as pallet::Config>::Region,
-        >
+        LegalOfficerDataOf<T>
     >;
 
     /// The set of LO nodes.
@@ -202,7 +199,7 @@ pub mod pallet {
         pub fn add_legal_officer(
             origin: OriginFor<T>,
             legal_officer_id: T::AccountId,
-            data: LegalOfficerData<T::AccountId, T::Region>,
+            data: LegalOfficerDataOf<T>,
         ) -> DispatchResultWithPostInfo {
             T::AddOrigin::ensure_origin(origin)?;
             Self::do_add_legal_officer(
@@ -239,7 +236,7 @@ pub mod pallet {
         pub fn update_legal_officer(
             origin: OriginFor<T>,
             legal_officer_id: T::AccountId,
-            data: LegalOfficerData<T::AccountId, T::Region>,
+            data: LegalOfficerDataOf<T>,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed_or_root(origin.clone())?;
             if who.is_some() && who.clone().unwrap() != legal_officer_id {
@@ -299,12 +296,12 @@ impl<T: Config> Pallet<T> {
     where <T::Region as FromStr>::Err: Debug
     {
         for legal_officer in legal_officers {
-            LegalOfficerSet::<T>::insert::<&T::AccountId, &LegalOfficerData<T::AccountId, T::Region>>(&(legal_officer.0), &LegalOfficerData::Host(legal_officer.1.clone()));
+            LegalOfficerSet::<T>::insert::<&T::AccountId, &LegalOfficerDataOf<T>>(&(legal_officer.0), &LegalOfficerData::Host(legal_officer.1.clone()));
             LegalOfficerNodes::<T>::set(BTreeSet::new());
         }
     }
 
-    fn try_reset_legal_officer_nodes(added_or_removed_data: &LegalOfficerData<T::AccountId, T::Region>) -> Result<(), Error<T>> {
+    fn try_reset_legal_officer_nodes(added_or_removed_data: &LegalOfficerDataOf<T>) -> Result<(), Error<T>> {
         match added_or_removed_data {
             LegalOfficerData::Host(_) => Self::reset_legal_officer_nodes(),
             _ => Ok(()),
@@ -342,7 +339,7 @@ impl<T: Config> Pallet<T> {
         false
     }
 
-    fn ensure_host_if_guest(data: &LegalOfficerData<T::AccountId, T::Region>) -> Result<(), Error<T>> {
+    fn ensure_host_if_guest(data: &LegalOfficerDataOf<T>) -> Result<(), Error<T>> {
         match &data {
             LegalOfficerData::Guest(host) => Self::ensure_host(host),
             _ => Ok(()),
@@ -363,7 +360,7 @@ impl<T: Config> Pallet<T> {
 
     fn do_add_legal_officer(
         legal_officer_id: T::AccountId,
-        data: LegalOfficerData<T::AccountId, T::Region>,
+        data: LegalOfficerDataOf<T>,
     ) -> DispatchResultWithPostInfo {
         if <LegalOfficerSet<T>>::contains_key(&legal_officer_id) {
             Err(Error::<T>::AlreadyExists)?
@@ -377,7 +374,7 @@ impl<T: Config> Pallet<T> {
         }
     }
 
-    fn get_region(data: &LegalOfficerData<T::AccountId, T::Region>) -> T::Region {
+    fn get_region(data: &LegalOfficerDataOf<T>) -> T::Region {
         match data {
             LegalOfficerData::Guest(host_account_id) => Self::get_region(&LegalOfficerSet::<T>::get(host_account_id).unwrap()),
             LegalOfficerData::Host(host_data) => host_data.region,
