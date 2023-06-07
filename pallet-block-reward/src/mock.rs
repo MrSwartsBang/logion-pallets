@@ -63,19 +63,26 @@ impl frame_system::Config for Test {
 }
 
 parameter_types! {
-    pub const MaxLocks: u32 = 4;
+    pub const MaxLocks: u32 = 2;
+    pub const MaxReserves: u32 = 2;
     pub const ExistentialDeposit: Balance = 2;
+    pub const MaxFreezes: u32 = 2;
+    pub const MaxHolds: u32 = 2;
 }
 
 impl pallet_balances::Config for Test {
     type MaxLocks = MaxLocks;
-    type MaxReserves = ();
+    type MaxReserves = MaxReserves;
     type ReserveIdentifier = [u8; 8];
     type Balance = Balance;
     type RuntimeEvent = RuntimeEvent;
     type DustRemoval = ();
     type ExistentialDeposit = ExistentialDeposit;
     type AccountStore = System;
+    type HoldIdentifier = [u8; 8];
+    type FreezeIdentifier = [u8; 8];
+    type MaxFreezes = MaxFreezes;
+    type MaxHolds = MaxHolds;
     type WeightInfo = ();
 }
 

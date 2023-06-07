@@ -122,6 +122,7 @@ impl pallet_logion_vote::Config for Test {
     type LocValidity = LocValidityMock;
     type LocQuery = LocQueryMock;
     type LegalOfficerCreation = LegalOfficerCreationMock;
+    type WeightInfo = ();
 }
 
 // Build genesis storage according to the mock runtime.
