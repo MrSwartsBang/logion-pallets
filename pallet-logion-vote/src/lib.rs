@@ -35,6 +35,8 @@ pub type VoteId = u64;
 pub type VoteClosed = bool;
 pub type VoteApproved = bool;
 
+pub mod weights;
+
 #[frame_support::pallet]
 pub mod pallet {
     use codec::HasCompact;
@@ -47,6 +49,7 @@ pub mod pallet {
     use logion_shared::{IsLegalOfficer, LegalOfficerCreation, LocQuery, LocValidity};
     use crate::BallotStatus::{NotVoted, VotedNo, VotedYes};
     use super::*;
+    pub use crate::weights::WeightInfo;
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -67,6 +70,9 @@ pub mod pallet {
 
         /// Creation of a guest LO
         type LegalOfficerCreation: LegalOfficerCreation<Self::AccountId>;
+
+        /// Weight information for extrinsics in this pallet.
+        type WeightInfo: WeightInfo;
     }
 
     #[pallet::pallet]
@@ -108,7 +114,7 @@ pub mod pallet {
     impl<T: Config> Pallet<T> {
         /// Creates a new Vote.
         #[pallet::call_index(0)]
-        #[pallet::weight(0)]
+        #[pallet::weight(T::WeightInfo::create_vote_for_all_legal_officers())]
         pub fn create_vote_for_all_legal_officers(
             origin: OriginFor<T>,
             #[pallet::compact] loc_id: T::LocId,
@@ -135,7 +141,7 @@ pub mod pallet {
 
         /// Vote.
         #[pallet::call_index(1)]
-        #[pallet::weight(0)]
+        #[pallet::weight(T::WeightInfo::vote())]
         pub fn vote(
             origin: OriginFor<T>,
             #[pallet::compact] vote_id: VoteId,

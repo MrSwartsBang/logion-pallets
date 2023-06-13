@@ -56,6 +56,8 @@ pub struct HostData<Region> {
 
 pub type HostDataOf<T> = HostData<<T as Config>::Region>;
 
+pub mod weights;
+
 #[frame_support::pallet]
 pub mod pallet {
     use frame_system::pallet_prelude::*;
@@ -64,6 +66,7 @@ pub mod pallet {
         pallet_prelude::*,
     };
     use super::*;
+    pub use crate::weights::WeightInfo;
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -82,6 +85,9 @@ pub mod pallet {
 
         /// The overarching event type.
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+
+        /// Weight information for extrinsics in this pallet.
+        type WeightInfo: WeightInfo;
     }
 
     #[pallet::pallet]
@@ -195,7 +201,7 @@ pub mod pallet {
 
         /// Adds a new LO to the list
         #[pallet::call_index(0)]
-        #[pallet::weight(0)]
+        #[pallet::weight(T::WeightInfo::add_legal_officer())]
         pub fn add_legal_officer(
             origin: OriginFor<T>,
             legal_officer_id: T::AccountId,
@@ -210,7 +216,7 @@ pub mod pallet {
 
         /// Removes a LO from the list
         #[pallet::call_index(1)]
-        #[pallet::weight(0)]
+        #[pallet::weight(T::WeightInfo::remove_legal_officer())]
         pub fn remove_legal_officer(
             origin: OriginFor<T>,
             legal_officer_id: T::AccountId,
@@ -232,7 +238,7 @@ pub mod pallet {
 
         /// Updates an existing LO's data
         #[pallet::call_index(2)]
-        #[pallet::weight(0)]
+        #[pallet::weight(T::WeightInfo::update_legal_officer())]
         pub fn update_legal_officer(
             origin: OriginFor<T>,
             legal_officer_id: T::AccountId,

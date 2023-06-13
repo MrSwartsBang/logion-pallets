@@ -363,7 +363,7 @@ fn expected_file(file: &FileParams<H256, AccountId, EthereumAddress>, acknowledg
 }
 
 fn set_balance(account_id: AccountId, amount: Balance) {
-    assert_ok!(Balances::set_balance(RuntimeOrigin::root(), account_id, amount, 0));
+    assert_ok!(Balances::force_set_balance(RuntimeOrigin::root(), account_id, amount));
 }
 
 fn check_storage_fees(num_of_files: u32, tot_size: &u32, payer: AccountId) {

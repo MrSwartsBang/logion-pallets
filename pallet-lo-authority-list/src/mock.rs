@@ -95,6 +95,7 @@ impl pallet_lo_authority_list::Config for Test {
     type UpdateOrigin = EnsureRoot<u64>;
     type Region = Region;
     type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = ();
 }
 
 // Build genesis storage according to the mock runtime.
