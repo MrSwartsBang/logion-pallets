@@ -540,6 +540,24 @@ pub mod pallet {
         fn integrity_test() {
             assert!(T::FileStorageFeeDistributionKey::get().is_valid());
         }
+
+        #[cfg(feature = "try-runtime")]
+        fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
+            LocMap::<T>::iter().for_each(|entry| {
+                let loc_id = entry.0;
+                let loc = entry.1;
+                loc.metadata.iter().for_each(|metadata| {
+                    log::info!("LOC {:?} metadata {:?} value {:?}", loc_id, metadata.name, metadata.value);
+                });
+                loc.files.iter().for_each(|file| {
+                    log::info!("LOC {:?} file {:?} nature {:?}", loc_id, file.hash, file.nature);
+                });
+                loc.links.iter().for_each(|link| {
+                    log::info!("LOC {:?} link {:?} nature {:?}", loc_id, link.id, link.nature);
+                });
+            });
+            Ok(())
+        }
     }
 
     #[derive(Encode, Decode, Eq, PartialEq, Debug, TypeInfo)]
