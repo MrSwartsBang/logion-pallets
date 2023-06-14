@@ -39,30 +39,30 @@ impl Default for LocType {
 }
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-pub struct MetadataItem<AccountId, EthereumAddress> {
-    name: Vec<u8>,
-    value: Vec<u8>,
+pub struct MetadataItem<AccountId, EthereumAddress, Hash> {
+    name: Hash,
+    value: Hash,
     submitter: SupportedAccountId<AccountId, EthereumAddress>,
     acknowledged: bool,
 }
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-pub struct MetadataItemParams<AccountId, EthereumAddress> {
-    name: Vec<u8>,
-    value: Vec<u8>,
+pub struct MetadataItemParams<AccountId, EthereumAddress, Hash> {
+    name: Hash,
+    value: Hash,
     submitter: SupportedAccountId<AccountId, EthereumAddress>,
 }
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-pub struct LocLink<LocId> {
+pub struct LocLink<LocId, Hash> {
     id: LocId,
-    nature: Vec<u8>,
+    nature: Hash,
 }
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
 pub struct File<Hash, AccountId, EthereumAddress> {
     hash: Hash,
-    nature: Vec<u8>,
+    nature: Hash,
     submitter: SupportedAccountId<AccountId, EthereumAddress>,
     size: u32,
     acknowledged: bool,
@@ -71,7 +71,7 @@ pub struct File<Hash, AccountId, EthereumAddress> {
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
 pub struct FileParams<Hash, AccountId, EthereumAddress> {
     hash: Hash,
-    nature: Vec<u8>,
+    nature: Hash,
     submitter: SupportedAccountId<AccountId, EthereumAddress>,
     size: u32,
 }
@@ -123,11 +123,11 @@ pub type CollectionSize = u32;
 pub struct LegalOfficerCase<AccountId, Hash, LocId, BlockNumber, EthereumAddress, SponsorshipId> {
     owner: AccountId,
     requester: Requester<AccountId, LocId, EthereumAddress>,
-    metadata: Vec<MetadataItem<AccountId, EthereumAddress>>,
+    metadata: Vec<MetadataItem<AccountId, EthereumAddress, Hash>>,
     files: Vec<File<Hash, AccountId, EthereumAddress>>,
     closed: bool,
     loc_type: LocType,
-    links: Vec<LocLink<LocId>>,
+    links: Vec<LocLink<LocId, Hash>>,
     void_info: Option<LocVoidInfo<LocId>>,
     replacer_of: Option<LocId>,
     collection_last_block_submission: Option<BlockNumber>,
@@ -242,6 +242,11 @@ pub type SponsorshipOf<T> = Sponsorship<
 
 pub mod weights;
 
+pub trait Hasher<Hash> {
+
+    fn hash(data: &Vec<u8>) -> Hash;
+}
+
 #[frame_support::pallet]
 pub mod pallet {
     use sp_std::collections::btree_set::BTreeSet;
@@ -251,7 +256,7 @@ pub mod pallet {
         pallet_prelude::*,
     };
     use codec::HasCompact;
-    use frame_support::traits::{Currency};
+    use frame_support::traits::Currency;
     use logion_shared::{LocQuery, LocValidity, IsLegalOfficer, RewardDistributor, DistributionKey, LegalFee, EuroCent, Beneficiary};
     use super::*;
     pub use crate::weights::WeightInfo;
@@ -264,6 +269,9 @@ pub mod pallet {
         /// Type for hashes stored in LOCs
         type Hash: Member + Parameter + Default + Copy + Ord;
 
+        /// Type for hasher
+        type Hasher: Hasher<<Self as pallet::Config>::Hash>;
+
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
 
@@ -272,18 +280,6 @@ pub mod pallet {
 
         /// Collection item identifier
         type CollectionItemId: Member + Parameter + Default + Copy;
-
-        /// The maximum size of a LOC metadata name
-        type MaxMetadataItemNameSize: Get<usize>;
-
-        /// The maximum size of a LOC metadata value
-        type MaxMetadataItemValueSize: Get<usize>;
-
-        /// The maximum size of a LOC file nature
-        type MaxFileNatureSize: Get<usize>;
-
-        /// The maximum size of a LOC link nature
-        type MaxLinkNatureSize: Get<usize>;
 
         /// The maximum size of a Collection Item description
         type MaxCollectionItemDescriptionSize: Get<usize>;
@@ -544,6 +540,24 @@ pub mod pallet {
         fn integrity_test() {
             assert!(T::FileStorageFeeDistributionKey::get().is_valid());
         }
+
+        #[cfg(feature = "try-runtime")]
+        fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
+            LocMap::<T>::iter().for_each(|entry| {
+                let loc_id = entry.0;
+                let loc = entry.1;
+                loc.metadata.iter().for_each(|metadata| {
+                    log::info!("LOC {:?} metadata {:?} value {:?}", loc_id, metadata.name, metadata.value);
+                });
+                loc.files.iter().for_each(|file| {
+                    log::info!("LOC {:?} file {:?} nature {:?}", loc_id, file.hash, file.nature);
+                });
+                loc.links.iter().for_each(|link| {
+                    log::info!("LOC {:?} link {:?} nature {:?}", loc_id, link.id, link.nature);
+                });
+            });
+            Ok(())
+        }
     }
 
     #[derive(Encode, Decode, Eq, PartialEq, Debug, TypeInfo)]
@@ -561,6 +575,7 @@ pub mod pallet {
         V11EnableEthereumSubmitter,
         V12Sponsorship,
         V13AcknowledgeItems,
+        V14HashLocPublicData,
     }
 
     impl Default for StorageVersion {
@@ -732,16 +747,9 @@ pub mod pallet {
         pub fn add_metadata(
             origin: OriginFor<T>,
             #[pallet::compact] loc_id: T::LocId,
-            item: MetadataItemParams<T::AccountId, T::EthereumAddress>
+            item: MetadataItemParams<T::AccountId, T::EthereumAddress, <T as pallet::Config>::Hash>
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
-
-            if item.name.len() > T::MaxMetadataItemNameSize::get() {
-                Err(Error::<T>::MetadataItemInvalid)?
-            }
-            if item.value.len() > T::MaxMetadataItemValueSize::get() {
-                Err(Error::<T>::MetadataItemInvalid)?
-            }
 
             if !<LocMap<T>>::contains_key(&loc_id) {
                 Err(Error::<T>::NotFound)?
@@ -786,10 +794,6 @@ pub mod pallet {
             file: FileParams<<T as pallet::Config>::Hash, T::AccountId, T::EthereumAddress>
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
-
-            if file.nature.len() > T::MaxFileNatureSize::get() {
-                Err(Error::<T>::FileInvalid)?
-            }
 
             if !<LocMap<T>>::contains_key(&loc_id) {
                 Err(Error::<T>::NotFound)?
@@ -843,13 +847,9 @@ pub mod pallet {
         pub fn add_link(
             origin: OriginFor<T>,
             #[pallet::compact] loc_id: T::LocId,
-            link: LocLink<T::LocId>
+            link: LocLink<T::LocId, <T as pallet::Config>::Hash>
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
-
-            if link.nature.len() > T::MaxLinkNatureSize::get() {
-                Err(Error::<T>::LocLinkInvalid)?
-            }
 
             if !<LocMap<T>>::contains_key(&loc_id) {
                 Err(Error::<T>::NotFound)?
@@ -1195,7 +1195,7 @@ pub mod pallet {
         pub fn acknowledge_metadata(
             origin: OriginFor<T>,
             #[pallet::compact] loc_id: T::LocId,
-            name: Vec<u8>,
+            name: <T as pallet::Config>::Hash,
         ) -> DispatchResultWithPostInfo {
             let who = T::IsLegalOfficer::ensure_origin(origin.clone())?;
 

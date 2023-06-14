@@ -6,38 +6,48 @@ use frame_support::traits::OnRuntimeUpgrade;
 
 use crate::{Config, LegalOfficerCaseOf, PalletStorageVersion, pallet::StorageVersion};
 
-pub mod v13 {
+pub mod v14 {
     use super::*;
     use crate::*;
 
     #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-    pub struct MetadataItemV12<AccountId, EthereumAddress> {
+    pub struct MetadataItemV13<AccountId, EthereumAddress> {
         name: Vec<u8>,
         value: Vec<u8>,
         submitter: SupportedAccountId<AccountId, EthereumAddress>,
+        acknowledged: bool,
     }
 
-    type MetadataItemV12Of<T> = MetadataItemV12<<T as frame_system::Config>::AccountId, <T as pallet::Config>::EthereumAddress>;
+    type MetadataItemV13Of<T> = MetadataItemV13<<T as frame_system::Config>::AccountId, <T as pallet::Config>::EthereumAddress>;
 
     #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-    struct FileV12<Hash, AccountId, EthereumAddress> {
+    struct FileV13<Hash, AccountId, EthereumAddress> {
         hash: Hash,
         nature: Vec<u8>,
         submitter: SupportedAccountId<AccountId, EthereumAddress>,
         size: u32,
+        acknowledged: bool,
     }
 
-    type FileV12Of<T> = FileV12<<T as pallet::Config>::Hash, <T as frame_system::Config>::AccountId, <T as pallet::Config>::EthereumAddress>;
+    type FileV13Of<T> = FileV13<<T as pallet::Config>::Hash, <T as frame_system::Config>::AccountId, <T as pallet::Config>::EthereumAddress>;
 
     #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-    pub struct LegalOfficerCaseV12<AccountId, Hash, LocId, BlockNumber, EthereumAddress, SponsorshipId> {
+    pub struct LocLinkV13<LocId> {
+        id: LocId,
+        nature: Vec<u8>,
+    }
+
+    type LocLinkV13Of<T> = LocLinkV13<<T as pallet::Config>::LocId>;
+
+    #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
+    pub struct LegalOfficerCaseV13<AccountId, Hash, LocId, BlockNumber, EthereumAddress, SponsorshipId> {
         owner: AccountId,
         requester: Requester<AccountId, LocId, EthereumAddress>,
-        metadata: Vec<MetadataItemV12<AccountId, EthereumAddress>>,
-        files: Vec<FileV12<Hash, AccountId, EthereumAddress>>,
+        metadata: Vec<MetadataItemV13<AccountId, EthereumAddress>>,
+        files: Vec<FileV13<Hash, AccountId, EthereumAddress>>,
         closed: bool,
         loc_type: LocType,
-        links: Vec<LocLink<LocId>>,
+        links: Vec<LocLinkV13<LocId>>,
         void_info: Option<LocVoidInfo<LocId>>,
         replacer_of: Option<LocId>,
         collection_last_block_submission: Option<BlockNumber>,
@@ -47,7 +57,7 @@ pub mod v13 {
         sponsorship_id: Option<SponsorshipId>,
     }
 
-    type LegalOfficerCaseV12Of<T> = LegalOfficerCaseV12<
+    type LegalOfficerCaseV13Of<T> = LegalOfficerCaseV13<
         <T as frame_system::Config>::AccountId,
         <T as pallet::Config>::Hash,
         <T as pallet::Config>::LocId,
@@ -56,33 +66,40 @@ pub mod v13 {
         <T as pallet::Config>::SponsorshipId,
     >;
 
-    pub struct AddAcknowledgeItems<T>(sp_std::marker::PhantomData<T>);
+    pub struct HashLocPublicData<T>(sp_std::marker::PhantomData<T>);
 
-    impl<T: Config> OnRuntimeUpgrade for AddAcknowledgeItems<T> {
+    impl<T: Config> OnRuntimeUpgrade for HashLocPublicData<T> {
         fn on_runtime_upgrade() -> Weight {
             super::do_storage_upgrade::<T, _>(
-                StorageVersion::V12Sponsorship,
                 StorageVersion::V13AcknowledgeItems,
-                "AddAcknowledgeItems",
+                StorageVersion::V14HashLocPublicData,
+                "HashLocPublicData",
                 || {
-                    LocMap::<T>::translate_values(|loc: LegalOfficerCaseV12Of<T>| {
+                    LocMap::<T>::translate_values(|loc: LegalOfficerCaseV13Of<T>| {
                         let files: Vec<File<<T as pallet::Config>::Hash, <T as frame_system::Config>::AccountId, T::EthereumAddress>> = loc.files
                             .iter()
-                            .map(|file: &FileV12Of<T>| File {
+                            .map(|file: &FileV13Of<T>| File {
                                 hash: file.hash,
-                                nature: file.nature.clone(),
+                                nature: T::Hasher::hash(&file.nature).into(),
                                 submitter: file.submitter.clone(),
                                 size: file.size,
-                                acknowledged: true,
+                                acknowledged: file.acknowledged,
                             })
                             .collect();
-                        let metadata: Vec<MetadataItem<<T as frame_system::Config>::AccountId, T::EthereumAddress>> = loc.metadata
+                        let metadata: Vec<MetadataItem<<T as frame_system::Config>::AccountId, T::EthereumAddress, <T as pallet::Config>::Hash>> = loc.metadata
                             .iter()
-                            .map(|item: &MetadataItemV12Of<T>| MetadataItem {
-                                name: item.name.clone(),
-                                value: item.value.clone(),
+                            .map(|item: &MetadataItemV13Of<T>| MetadataItem {
+                                name: T::Hasher::hash(&item.name),
+                                value: T::Hasher::hash(&item.value),
                                 submitter: item.submitter.clone(),
-                                acknowledged: true,
+                                acknowledged: item.acknowledged,
+                            })
+                            .collect();
+                        let links: Vec<LocLink<<T as pallet::Config>::LocId, <T as pallet::Config>::Hash>> = loc.links
+                            .iter()
+                            .map(|link: &LocLinkV13Of<T>| LocLink {
+                                id: link.id.clone(),
+                                nature: T::Hasher::hash(&link.nature),
                             })
                             .collect();
                         Some(LegalOfficerCaseOf::<T> {
@@ -92,14 +109,14 @@ pub mod v13 {
                             files,
                             closed: loc.closed,
                             loc_type: loc.loc_type,
-                            links: loc.links,
+                            links,
                             void_info: loc.void_info,
                             replacer_of: loc.replacer_of,
                             collection_last_block_submission: loc.collection_last_block_submission,
                             collection_max_size: loc.collection_max_size,
                             collection_can_upload: loc.collection_can_upload,
                             seal: loc.seal,
-                            sponsorship_id: None,
+                            sponsorship_id: loc.sponsorship_id,
                         })
                     })
                 }

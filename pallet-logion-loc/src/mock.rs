@@ -1,7 +1,8 @@
-use crate::{self as pallet_loc, LocType, NegativeImbalanceOf, RequesterOf};
+use crate::{self as pallet_loc, LocType, NegativeImbalanceOf, RequesterOf, Hasher};
 use logion_shared::{Beneficiary, DistributionKey, EuroCent, IsLegalOfficer, LegalFee, RewardDistributor};
 use sp_core::hash::H256;
 use frame_support::{construct_runtime, parameter_types, traits::{EnsureOrigin, Currency}};
+use sp_io::hashing::sha2_256;
 use sp_runtime::{traits::{BlakeTwo256, IdentityLookup}, testing::Header, Percent};
 use frame_system as system;
 use sp_core::H160;
@@ -13,6 +14,7 @@ pub type AccountId = u64;
 pub type Balance = u128;
 pub type EthereumAddress = H160;
 pub type SponsorshipId = u32;
+pub type Hash = H256;
 
 construct_runtime!(
     pub struct Test where
@@ -40,7 +42,7 @@ impl system::Config for Test {
     type RuntimeCall = RuntimeCall;
     type Index = u64;
     type BlockNumber = u64;
-    type Hash = H256;
+    type Hash = Hash;
     type Hashing = BlakeTwo256;
     type AccountId = AccountId;
     type Lookup = IdentityLookup<Self::AccountId>;
@@ -110,10 +112,6 @@ impl IsLegalOfficer<<Test as system::Config>::AccountId, RuntimeOrigin> for LoAu
 }
 
 parameter_types! {
-    pub const MaxMetadataItemNameSize: usize = 40;
-    pub const MaxMetadataItemValueSize: usize = 4096;
-    pub const MaxFileNatureSize: usize = 255;
-    pub const MaxLinkNatureSize: usize = 255;
     pub const MaxCollectionItemDescriptionSize: usize = 4096;
     pub const MaxCollectionItemTokenIdSize: usize = 255;
     pub const MaxCollectionItemTokenTypeSize: usize = 255;
@@ -179,15 +177,21 @@ impl LegalFee<NegativeImbalanceOf<Test>, Balance, LocType, AccountId> for LegalF
     }
 }
 
+pub struct SHA256;
+impl Hasher<H256> for SHA256 {
+
+    fn hash(data: &Vec<u8>) -> H256 {
+        let bytes = sha2_256(data);
+        H256(bytes)
+    }
+}
+
 impl pallet_loc::Config for Test {
     type LocId = u32;
     type RuntimeEvent = RuntimeEvent;
     type Hash = H256;
+    type Hasher = SHA256;
     type IsLegalOfficer = LoAuthorityListMock;
-    type MaxMetadataItemNameSize = MaxMetadataItemNameSize;
-    type MaxMetadataItemValueSize = MaxMetadataItemValueSize;
-    type MaxFileNatureSize = MaxFileNatureSize;
-    type MaxLinkNatureSize = MaxLinkNatureSize;
     type CollectionItemId = H256;
     type MaxCollectionItemDescriptionSize = MaxCollectionItemDescriptionSize;
     type MaxCollectionItemTokenIdSize = MaxCollectionItemTokenIdSize;
