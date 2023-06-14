@@ -281,18 +281,6 @@ pub mod pallet {
         /// Collection item identifier
         type CollectionItemId: Member + Parameter + Default + Copy;
 
-        /// The maximum size of a LOC metadata name
-        type MaxMetadataItemNameSize: Get<usize>;
-
-        /// The maximum size of a LOC metadata value
-        type MaxMetadataItemValueSize: Get<usize>;
-
-        /// The maximum size of a LOC file nature
-        type MaxFileNatureSize: Get<usize>;
-
-        /// The maximum size of a LOC link nature
-        type MaxLinkNatureSize: Get<usize>;
-
         /// The maximum size of a Collection Item description
         type MaxCollectionItemDescriptionSize: Get<usize>;
 

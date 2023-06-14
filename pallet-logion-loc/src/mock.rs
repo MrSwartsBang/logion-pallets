@@ -112,10 +112,6 @@ impl IsLegalOfficer<<Test as system::Config>::AccountId, RuntimeOrigin> for LoAu
 }
 
 parameter_types! {
-    pub const MaxMetadataItemNameSize: usize = 40;
-    pub const MaxMetadataItemValueSize: usize = 4096;
-    pub const MaxFileNatureSize: usize = 255;
-    pub const MaxLinkNatureSize: usize = 255;
     pub const MaxCollectionItemDescriptionSize: usize = 4096;
     pub const MaxCollectionItemTokenIdSize: usize = 255;
     pub const MaxCollectionItemTokenTypeSize: usize = 255;
@@ -196,10 +192,6 @@ impl pallet_loc::Config for Test {
     type Hash = H256;
     type Hasher = SHA256;
     type IsLegalOfficer = LoAuthorityListMock;
-    type MaxMetadataItemNameSize = MaxMetadataItemNameSize;
-    type MaxMetadataItemValueSize = MaxMetadataItemValueSize;
-    type MaxFileNatureSize = MaxFileNatureSize;
-    type MaxLinkNatureSize = MaxLinkNatureSize;
     type CollectionItemId = H256;
     type MaxCollectionItemDescriptionSize = MaxCollectionItemDescriptionSize;
     type MaxCollectionItemTokenIdSize = MaxCollectionItemTokenIdSize;
