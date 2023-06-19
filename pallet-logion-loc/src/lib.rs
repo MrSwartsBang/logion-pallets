@@ -9,6 +9,9 @@ pub mod runtime_api;
 mod mock;
 
 #[cfg(test)]
+mod fees;
+
+#[cfg(test)]
 mod tests;
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -154,15 +157,20 @@ pub struct TermsAndConditionsElement<LocId> {
 }
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-pub struct CollectionItem<Hash, LocId> {
+pub struct CollectionItem<Hash, LocId, TokenIssuance> {
     description: Vec<u8>,
     files: Vec<CollectionItemFile<Hash>>,
     token: Option<CollectionItemToken>,
     restricted_delivery: bool,
     terms_and_conditions: Vec<TermsAndConditionsElement<LocId>>,
+    token_issuance: TokenIssuance,
 }
 
-pub type CollectionItemOf<T> = CollectionItem<<T as pallet::Config>::Hash, <T as pallet::Config>::LocId>;
+pub type CollectionItemOf<T> = CollectionItem<
+    <T as pallet::Config>::Hash,
+    <T as pallet::Config>::LocId,
+    <T as pallet::Config>::TokenIssuance,
+>;
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
 pub struct CollectionItemFile<Hash> {
@@ -253,11 +261,14 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use frame_support::{
         dispatch::DispatchResultWithPostInfo,
-        pallet_prelude::*,
+        pallet_prelude::*, traits::tokens::Balance,
     };
     use codec::HasCompact;
     use frame_support::traits::Currency;
-    use logion_shared::{LocQuery, LocValidity, IsLegalOfficer, RewardDistributor, DistributionKey, LegalFee, EuroCent, Beneficiary};
+    use logion_shared::{
+        LocQuery, LocValidity, IsLegalOfficer, RewardDistributor,
+        DistributionKey, LegalFee, EuroCent, Beneficiary,
+    };
     use super::*;
     pub use crate::weights::WeightInfo;
 
@@ -318,7 +329,7 @@ pub mod pallet {
         type FileStorageEntryFee: Get<BalanceOf<Self>>;
 
         /// Used to payout file storage fees
-        type FileStorageFeeDistributor: RewardDistributor<NegativeImbalanceOf<Self>, BalanceOf<Self>>;
+        type RewardDistributor: RewardDistributor<NegativeImbalanceOf<Self>, BalanceOf<Self>>;
 
         /// Used to payout rewards
         type FileStorageFeeDistributionKey: Get<DistributionKey>;
@@ -334,6 +345,15 @@ pub mod pallet {
 
         /// Exchange Rate LGNT/EURO cents, i.e. the amount of balance equivalent to 1 euro cent.
         type ExchangeRate: Get<BalanceOf<Self>>;
+
+        /// The item legal fee per issued token
+        type ItemLegalFee: Get<BalanceOf<Self>>;
+
+        /// Used to payout rewards
+        type ItemLegalFeeDistributionKey: Get<DistributionKey>;
+
+        /// The collection item's token issuance type
+        type TokenIssuance: Balance + Into<BalanceOf<Self>>;
     }
 
     #[pallet::pallet]
@@ -436,6 +456,8 @@ pub mod pallet {
         SponsorshipWithdrawn(T::SponsorshipId, T::AccountId, SupportedAccountId<T::AccountId, T::EthereumAddress>),
         /// Issued when Legal Fee is withdrawn. [payerAccountId, beneficiary, legalFee]
         LegalFeeWithdrawn(T::AccountId, Beneficiary<T::AccountId>, BalanceOf<T>),
+        /// Issued when Item Legal Fee is withdrawn. [payerAccountId, fee]
+        ItemLegalFeeWithdrawn(T::AccountId, BalanceOf<T>),
     }
 
     #[pallet::error]
@@ -533,6 +555,8 @@ pub mod pallet {
         ItemAlreadyAcknowledged,
         /// There is still at least one Unacknowledged Item (Metadata or File)
         CannotCloseUnacknowledged,
+        /// Invalid token issuance
+        BadTokenIssuance,
     }
 
     #[pallet::hooks]
@@ -556,6 +580,12 @@ pub mod pallet {
                     log::info!("LOC {:?} link {:?} nature {:?}", loc_id, link.id, link.nature);
                 });
             });
+
+            CollectionItemsMap::<T>::iter().for_each(|entry| {
+                let item = entry.2;
+                assert_eq!(item.token_issuance, 0u32.into());
+            });
+
             Ok(())
         }
     }
@@ -576,11 +606,12 @@ pub mod pallet {
         V12Sponsorship,
         V13AcknowledgeItems,
         V14HashLocPublicData,
+        V15AddTokenIssuance,
     }
 
     impl Default for StorageVersion {
         fn default() -> StorageVersion {
-            return StorageVersion::V12Sponsorship;
+            return StorageVersion::V15AddTokenIssuance;
         }
     }
 
@@ -825,7 +856,7 @@ pub mod pallet {
                             _ => loc.owner
                         };
                     }
-                    Self::apply_file_storage_fee(fee_payer, 1, file.size)?;
+                    Self::apply_file_storage_fee(&fee_payer, 1, file.size)?;
                     <LocMap<T>>::mutate(loc_id, |loc| {
                         let mutable_loc = loc.as_mut().unwrap();
                         mutable_loc.files.push(File {
@@ -929,9 +960,13 @@ pub mod pallet {
             item_files: Vec<CollectionItemFileOf<T>>,
             item_token: Option<CollectionItemToken>,
             restricted_delivery: bool,
-        ) -> DispatchResultWithPostInfo { Self::do_add_collection_item(origin, collection_loc_id, item_id, item_description, item_files, item_token, restricted_delivery, Vec::new()) }
+            terms_and_conditions: Vec<TermsAndConditionsElement<<T as pallet::Config>::LocId>>,
+            token_issuance: T::TokenIssuance,
+        ) -> DispatchResultWithPostInfo { Self::do_add_collection_item(origin, collection_loc_id, item_id, item_description, item_files, item_token, restricted_delivery, terms_and_conditions, token_issuance) }
 
         /// Adds an item with terms and conditions to a collection
+        /// 
+        /// DEPRECATED - this extrinsic will be removed in a future release, use add_collection_item instead
         #[pallet::call_index(13)]
         #[pallet::weight(T::WeightInfo::add_collection_item())]
         pub fn add_collection_item_with_terms_and_conditions(
@@ -943,7 +978,7 @@ pub mod pallet {
             item_token: Option<CollectionItemToken>,
             restricted_delivery: bool,
             terms_and_conditions: Vec<TermsAndConditionsElement<<T as pallet::Config>::LocId>>,
-        ) -> DispatchResultWithPostInfo { Self::do_add_collection_item(origin, collection_loc_id, item_id, item_description, item_files, item_token, restricted_delivery, terms_and_conditions) }
+        ) -> DispatchResultWithPostInfo { Self::do_add_collection_item(origin, collection_loc_id, item_id, item_description, item_files, item_token, restricted_delivery, terms_and_conditions, 1_u32.into()) }
 
         /// Nominate an issuer
         #[pallet::call_index(14)]
@@ -1092,7 +1127,7 @@ pub mod pallet {
                     let tot_size = files.iter()
                         .map(|file| file.size)
                         .fold(0, |tot, current| tot + current);
-                    Self::apply_file_storage_fee(fee_payer, files.len(), tot_size)?;
+                    Self::apply_file_storage_fee(&fee_payer, files.len(), tot_size)?;
                     let record = TokensRecord {
                         description: bounded_description,
                         files: bounded_files,
@@ -1558,6 +1593,7 @@ pub mod pallet {
             item_token: Option<CollectionItemToken>,
             restricted_delivery: bool,
             terms_and_conditions: Vec<TermsAndConditionsElement<<T as pallet::Config>::LocId>>,
+            token_issuance: T::TokenIssuance,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
@@ -1571,6 +1607,10 @@ pub mod pallet {
 
             if item_token.is_some() && item_token.as_ref().unwrap().token_id.len() > T::MaxCollectionItemTokenIdSize::get() {
                 Err(Error::<T>::CollectionItemTooMuchData)?
+            }
+
+            if item_token.is_some() && token_issuance < 1_u32.into() {
+                Err(Error::<T>::BadTokenIssuance)?
             }
 
             if restricted_delivery && item_token.is_none() {
@@ -1621,17 +1661,27 @@ pub mod pallet {
                     let tot_size = item_files.iter()
                         .map(|file| file.size)
                         .fold(0, |tot, current| tot + current);
-                    Self::apply_file_storage_fee(who, item_files.len(), tot_size)?;
+                    Self::apply_file_storage_fee(&who, item_files.len(), tot_size)?;
                     let item = CollectionItem {
                         description: item_description.clone(),
                         files: item_files.clone(),
                         token: item_token.clone(),
                         restricted_delivery,
                         terms_and_conditions,
+                        token_issuance,
                     };
                     <CollectionItemsMap<T>>::insert(collection_loc_id, item_id, item);
                     let collection_size = <CollectionSizeMap<T>>::get(&collection_loc_id).unwrap_or(0);
                     <CollectionSizeMap<T>>::insert(&collection_loc_id, collection_size + 1);
+
+                    if item_token.is_some() {
+                        let fee = T::ItemLegalFee::get().saturating_mul(token_issuance.into());
+                        ensure!(T::Currency::can_slash(&who, fee), Error::<T>::InsufficientFunds);
+
+                        let (credit, _) = T::Currency::slash(&who, fee);
+                        T::RewardDistributor::distribute(credit, T::ItemLegalFeeDistributionKey::get());
+                        Self::deposit_event(Event::ItemLegalFeeWithdrawn(who, fee));
+                    }
                 },
             }
 
@@ -1670,12 +1720,12 @@ pub mod pallet {
             }
         }
 
-        fn apply_file_storage_fee(fee_payer: T::AccountId, num_of_entries: usize, tot_size: u32) -> DispatchResult {
+        fn apply_file_storage_fee(fee_payer: &T::AccountId, num_of_entries: usize, tot_size: u32) -> DispatchResult {
             let fee = Self::calculate_fee(num_of_entries as u32, tot_size);
             ensure!(T::Currency::can_slash(&fee_payer, fee), Error::<T>::InsufficientFunds);
             let (credit, _) = T::Currency::slash(&fee_payer, fee);
-            T::FileStorageFeeDistributor::distribute(credit, T::FileStorageFeeDistributionKey::get());
-            Self::deposit_event(Event::StorageFeeWithdrawn(fee_payer, fee));
+            T::RewardDistributor::distribute(credit, T::FileStorageFeeDistributionKey::get());
+            Self::deposit_event(Event::StorageFeeWithdrawn(fee_payer.clone(), fee));
             Ok(())
         }
 

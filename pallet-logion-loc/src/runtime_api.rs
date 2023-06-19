@@ -17,5 +17,8 @@ sp_api::decl_runtime_apis! {
 
         /// Query expected legal fees for opening a LOC with given type
         fn query_legal_fee(loc_type: LocType) -> Balance;
+
+        /// Query expected item legal fees for adding an item with given type
+        fn query_item_legal_fee(total_issuance: u128) -> Balance;
     }
 }
