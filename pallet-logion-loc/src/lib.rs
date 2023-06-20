@@ -346,11 +346,11 @@ pub mod pallet {
         /// Exchange Rate LGNT/EURO cents, i.e. the amount of balance equivalent to 1 euro cent.
         type ExchangeRate: Get<BalanceOf<Self>>;
 
-        /// The item legal fee per issued token
-        type ItemLegalFee: Get<BalanceOf<Self>>;
+        /// The certificate fee per issued token
+        type CertificateFee: Get<BalanceOf<Self>>;
 
         /// Used to payout rewards
-        type ItemLegalFeeDistributionKey: Get<DistributionKey>;
+        type CertificateFeeDistributionKey: Get<DistributionKey>;
 
         /// The collection item's token issuance type
         type TokenIssuance: Balance + Into<BalanceOf<Self>>;
@@ -456,8 +456,8 @@ pub mod pallet {
         SponsorshipWithdrawn(T::SponsorshipId, T::AccountId, SupportedAccountId<T::AccountId, T::EthereumAddress>),
         /// Issued when Legal Fee is withdrawn. [payerAccountId, beneficiary, legalFee]
         LegalFeeWithdrawn(T::AccountId, Beneficiary<T::AccountId>, BalanceOf<T>),
-        /// Issued when Item Legal Fee is withdrawn. [payerAccountId, fee]
-        ItemLegalFeeWithdrawn(T::AccountId, BalanceOf<T>),
+        /// Issued when Certificate Fee is withdrawn. [payerAccountId, fee]
+        CertificateFeeWithdrawn(T::AccountId, BalanceOf<T>),
     }
 
     #[pallet::error]
@@ -1675,12 +1675,12 @@ pub mod pallet {
                     <CollectionSizeMap<T>>::insert(&collection_loc_id, collection_size + 1);
 
                     if item_token.is_some() {
-                        let fee = Self::calculate_item_legal_fee(token_issuance);
+                        let fee = Self::calculate_certificate_fee(token_issuance);
                         ensure!(T::Currency::can_slash(&who, fee), Error::<T>::InsufficientFunds);
 
                         let (credit, _) = T::Currency::slash(&who, fee);
-                        T::RewardDistributor::distribute(credit, T::ItemLegalFeeDistributionKey::get());
-                        Self::deposit_event(Event::ItemLegalFeeWithdrawn(who, fee));
+                        T::RewardDistributor::distribute(credit, T::CertificateFeeDistributionKey::get());
+                        Self::deposit_event(Event::CertificateFeeWithdrawn(who, fee));
                     }
                 },
             }
@@ -1689,8 +1689,8 @@ pub mod pallet {
             Ok(().into())
         }
 
-        pub fn calculate_item_legal_fee(token_issuance: T::TokenIssuance) -> BalanceOf<T> {
-            T::ItemLegalFee::get().saturating_mul(token_issuance.into())
+        pub fn calculate_certificate_fee(token_issuance: T::TokenIssuance) -> BalanceOf<T> {
+            T::CertificateFee::get().saturating_mul(token_issuance.into())
         }
 
         fn can_add_record(adder: &T::AccountId, loc_id: &T::LocId, collection_loc: &LegalOfficerCaseOf<T>) -> bool {

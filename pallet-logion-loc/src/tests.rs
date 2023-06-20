@@ -1140,7 +1140,7 @@ fn it_adds_item_with_token() {
             storage_fees: Fees::storage_fees(1, collection_item_files[0].size),
             legal_fees: 0,
             legal_fee_beneficiary: None,
-            item_legal_fees: 800_000_000_000_000_000,
+            certificate_fees: 8_000_000_000_000_000,
         };
         fees.assert_balances_events(snapshot);
     });

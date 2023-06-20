@@ -156,8 +156,8 @@ parameter_types! {
     };
     pub const ExchangeRate: Balance = 200_000_000_000_000_000; // 1 euro cent = 0.2 LGNT;
     pub const TreasuryAccountId: u64 = TREASURY_ACCOUNT_ID;
-    pub const ItemLegalFee: u64 = 400_000_000_000_000_000; // 0.4 LGNT
-    pub const ItemLegalFeeDistributionKey: DistributionKey = DistributionKey {
+    pub const CertificateFee: u64 = 4_000_000_000_000_000; // 0.004 LGNT
+    pub const CertificateFeeDistributionKey: DistributionKey = DistributionKey {
         stakers_percent: Percent::from_percent(50),
         collators_percent: Percent::from_percent(30),
         reserve_percent: Percent::from_percent(20),
@@ -218,8 +218,8 @@ impl pallet_loc::Config for Test {
     type SponsorshipId = SponsorshipId;
     type LegalFee = LegalFeeImpl;
     type ExchangeRate = ExchangeRate;
-    type ItemLegalFee = ItemLegalFee;
-    type ItemLegalFeeDistributionKey = ItemLegalFeeDistributionKey;
+    type CertificateFee = CertificateFee;
+    type CertificateFeeDistributionKey = CertificateFeeDistributionKey;
     type TokenIssuance = TokenIssuance;
 }
 

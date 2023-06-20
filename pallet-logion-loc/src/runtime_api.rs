@@ -19,6 +19,6 @@ sp_api::decl_runtime_apis! {
         fn query_legal_fee(loc_type: LocType) -> Balance;
 
         /// Query expected item legal fees for adding an item with given type
-        fn query_item_legal_fee(token_issuance: TokenIssuance) -> Balance;
+        fn query_certificate_fee(token_issuance: TokenIssuance) -> Balance;
     }
 }

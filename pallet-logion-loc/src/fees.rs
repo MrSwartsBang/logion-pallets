@@ -79,17 +79,17 @@ pub struct Fees {
     pub legal_fees: Balance,
     /// When legal_fees is > 0, legal_fee_beneficiary must be some; should be none otherwise
     pub legal_fee_beneficiary: Option<Beneficiary<AccountId>>,
-    pub item_legal_fees: Balance,
+    pub certificate_fees: Balance,
 }
 impl Fees {
 
     pub fn total(&self) -> Balance {
-        self.storage_fees + self.legal_fees + self.item_legal_fees
+        self.storage_fees + self.legal_fees + self.certificate_fees
     }
 
     pub fn only_storage(num_of_files: u32, tot_size: u32) -> Fees {
         Fees {
-            item_legal_fees: 0,
+            certificate_fees: 0,
             legal_fees: 0,
             storage_fees: Self::storage_fees(num_of_files, tot_size),
             legal_fee_beneficiary: None,
@@ -104,7 +104,7 @@ impl Fees {
 
     pub fn only_legal(fee: Balance, beneficiary: Beneficiary<AccountId>) -> Fees {
         Fees {
-            item_legal_fees: 0,
+            certificate_fees: 0,
             legal_fees: fee,
             storage_fees: 0,
             legal_fee_beneficiary: Some(beneficiary),
@@ -137,10 +137,10 @@ impl Fees {
             }));
         }
     
-        if self.item_legal_fees > 0 {
-            System::assert_has_event(RuntimeEvent::LogionLoc(crate::Event::ItemLegalFeeWithdrawn {
+        if self.certificate_fees > 0 {
+            System::assert_has_event(RuntimeEvent::LogionLoc(crate::Event::CertificateFeeWithdrawn {
                 0: previous_balances.payer_account,
-                1: self.item_legal_fees,
+                1: self.certificate_fees,
             }));
         }
     }
