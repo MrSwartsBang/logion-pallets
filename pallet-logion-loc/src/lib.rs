@@ -1675,7 +1675,7 @@ pub mod pallet {
                     <CollectionSizeMap<T>>::insert(&collection_loc_id, collection_size + 1);
 
                     if item_token.is_some() {
-                        let fee = T::ItemLegalFee::get().saturating_mul(token_issuance.into());
+                        let fee = Self::calculate_item_legal_fee(token_issuance);
                         ensure!(T::Currency::can_slash(&who, fee), Error::<T>::InsufficientFunds);
 
                         let (credit, _) = T::Currency::slash(&who, fee);
@@ -1687,6 +1687,10 @@ pub mod pallet {
 
             Self::deposit_event(Event::ItemAdded(collection_loc_id, item_id));
             Ok(().into())
+        }
+
+        pub fn calculate_item_legal_fee(token_issuance: T::TokenIssuance) -> BalanceOf<T> {
+            T::ItemLegalFee::get().saturating_mul(token_issuance.into())
         }
 
         fn can_add_record(adder: &T::AccountId, loc_id: &T::LocId, collection_loc: &LegalOfficerCaseOf<T>) -> bool {
