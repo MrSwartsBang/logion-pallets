@@ -1,5 +1,5 @@
 use crate::{self as pallet_loc, LocType, NegativeImbalanceOf, RequesterOf, Hasher};
-use logion_shared::{Beneficiary, DistributionKey, EuroCent, IsLegalOfficer, LegalFee, RewardDistributor};
+use logion_shared::{Beneficiary, DistributionKey, EuroCent, IsLegalOfficer, LegalFee};
 use sp_core::hash::H256;
 use frame_support::{construct_runtime, parameter_types, traits::{EnsureOrigin, Currency}};
 use sp_io::hashing::sha2_256;
@@ -12,6 +12,7 @@ type Block = frame_system::mocking::MockBlock<Test>;
 
 pub type AccountId = u64;
 pub type Balance = u128;
+pub type TokenIssuance = u64;
 pub type EthereumAddress = H160;
 pub type SponsorshipId = u32;
 pub type Hash = H256;
@@ -128,9 +129,9 @@ pub const COLLATORS_ACCOUNT: AccountId = 21;
 pub const STAKERS_ACCOUNT: AccountId = 22;
 
 // Type used as beneficiary payout handle
-pub struct RewardDistributorImpl();
-impl RewardDistributor<NegativeImbalanceOf<Test>, Balance>
-for RewardDistributorImpl
+pub struct RewardDistributor;
+impl logion_shared::RewardDistributor<NegativeImbalanceOf<Test>, Balance>
+for RewardDistributor
 {
     fn payout_reserve(reward: NegativeImbalanceOf<Test>) {
         Balances::resolve_creating(&RESERVE_ACCOUNT, reward);
@@ -155,6 +156,12 @@ parameter_types! {
     };
     pub const ExchangeRate: Balance = 200_000_000_000_000_000; // 1 euro cent = 0.2 LGNT;
     pub const TreasuryAccountId: u64 = TREASURY_ACCOUNT_ID;
+    pub const CertificateFee: u64 = 4_000_000_000_000_000; // 0.004 LGNT
+    pub const CertificateFeeDistributionKey: DistributionKey = DistributionKey {
+        stakers_percent: Percent::from_percent(50),
+        collators_percent: Percent::from_percent(30),
+        reserve_percent: Percent::from_percent(20),
+    };
 }
 
 pub struct LegalFeeImpl;
@@ -205,12 +212,15 @@ impl pallet_loc::Config for Test {
     type Currency = Balances;
     type FileStorageByteFee = FileStorageByteFee;
     type FileStorageEntryFee = FileStorageEntryFee;
-    type FileStorageFeeDistributor = RewardDistributorImpl;
+    type RewardDistributor = RewardDistributor;
     type FileStorageFeeDistributionKey = RewardDistributionKey;
     type EthereumAddress = EthereumAddress;
     type SponsorshipId = SponsorshipId;
     type LegalFee = LegalFeeImpl;
     type ExchangeRate = ExchangeRate;
+    type CertificateFee = CertificateFee;
+    type CertificateFeeDistributionKey = CertificateFeeDistributionKey;
+    type TokenIssuance = TokenIssuance;
 }
 
 // Build genesis storage according to the mock runtime.

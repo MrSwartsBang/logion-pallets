@@ -4,7 +4,50 @@ use frame_support::dispatch::Vec;
 use frame_support::weights::Weight;
 use frame_support::traits::OnRuntimeUpgrade;
 
-use crate::{Config, LegalOfficerCaseOf, PalletStorageVersion, pallet::StorageVersion};
+use crate::{Config, PalletStorageVersion, pallet::StorageVersion};
+
+pub mod v15 {
+    use super::*;
+    use crate::*;
+
+    #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
+    struct CollectionItemV14<Hash, LocId> {
+        description: Vec<u8>,
+        files: Vec<CollectionItemFile<Hash>>,
+        token: Option<CollectionItemToken>,
+        restricted_delivery: bool,
+        terms_and_conditions: Vec<TermsAndConditionsElement<LocId>>,
+    }
+
+    type CollectionItemV14Of<T> = CollectionItemV14<
+        <T as pallet::Config>::Hash,
+        <T as pallet::Config>::LocId,
+    >;
+
+    pub struct AddTokenIssuance<T>(sp_std::marker::PhantomData<T>);
+
+    impl<T: Config> OnRuntimeUpgrade for AddTokenIssuance<T> {
+        fn on_runtime_upgrade() -> Weight {
+            super::do_storage_upgrade::<T, _>(
+                StorageVersion::V14HashLocPublicData,
+                StorageVersion::V15AddTokenIssuance,
+                "AddTokenIssuance",
+                || {
+                    CollectionItemsMap::<T>::translate_values(|item: CollectionItemV14Of<T>| {
+                        Some(CollectionItemOf::<T> {
+                            description: item.description,
+                            files: item.files,
+                            token: item.token,
+                            restricted_delivery: item.restricted_delivery,
+                            terms_and_conditions: item.terms_and_conditions,
+                            token_issuance: 0u32.into(),
+                        })
+                    })
+                }
+            )
+        }
+    }
+}
 
 pub mod v14 {
     use super::*;
