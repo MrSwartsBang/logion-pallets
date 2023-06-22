@@ -160,10 +160,9 @@ pub struct TermsAndConditionsElement<LocId> {
 pub struct CollectionItem<Hash, LocId, TokenIssuance> {
     description: Vec<u8>,
     files: Vec<CollectionItemFile<Hash>>,
-    token: Option<CollectionItemToken>,
+    token: Option<CollectionItemToken<TokenIssuance>>,
     restricted_delivery: bool,
     terms_and_conditions: Vec<TermsAndConditionsElement<LocId>>,
-    token_issuance: TokenIssuance,
 }
 
 pub type CollectionItemOf<T> = CollectionItem<
@@ -183,9 +182,10 @@ pub struct CollectionItemFile<Hash> {
 pub type CollectionItemFileOf<T> = CollectionItemFile<<T as pallet::Config>::Hash>;
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-pub struct CollectionItemToken {
+pub struct CollectionItemToken<TokenIssuance> {
     token_type: Vec<u8>,
     token_id: Vec<u8>,
+    token_issuance: TokenIssuance,
 }
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
@@ -607,11 +607,12 @@ pub mod pallet {
         V13AcknowledgeItems,
         V14HashLocPublicData,
         V15AddTokenIssuance,
+        V16MoveTokenIssuance,
     }
 
     impl Default for StorageVersion {
         fn default() -> StorageVersion {
-            return StorageVersion::V15AddTokenIssuance;
+            return StorageVersion::V16MoveTokenIssuance;
         }
     }
 
@@ -958,11 +959,10 @@ pub mod pallet {
             item_id: T::CollectionItemId,
             item_description: Vec<u8>,
             item_files: Vec<CollectionItemFileOf<T>>,
-            item_token: Option<CollectionItemToken>,
+            item_token: Option<CollectionItemToken<T::TokenIssuance>>,
             restricted_delivery: bool,
             terms_and_conditions: Vec<TermsAndConditionsElement<<T as pallet::Config>::LocId>>,
-            token_issuance: T::TokenIssuance,
-        ) -> DispatchResultWithPostInfo { Self::do_add_collection_item(origin, collection_loc_id, item_id, item_description, item_files, item_token, restricted_delivery, terms_and_conditions, token_issuance) }
+        ) -> DispatchResultWithPostInfo { Self::do_add_collection_item(origin, collection_loc_id, item_id, item_description, item_files, item_token, restricted_delivery, terms_and_conditions) }
 
         /// Adds an item with terms and conditions to a collection
         /// 
@@ -975,10 +975,10 @@ pub mod pallet {
             item_id: T::CollectionItemId,
             item_description: Vec<u8>,
             item_files: Vec<CollectionItemFileOf<T>>,
-            item_token: Option<CollectionItemToken>,
+            item_token: Option<CollectionItemToken<T::TokenIssuance>>,
             restricted_delivery: bool,
             terms_and_conditions: Vec<TermsAndConditionsElement<<T as pallet::Config>::LocId>>,
-        ) -> DispatchResultWithPostInfo { Self::do_add_collection_item(origin, collection_loc_id, item_id, item_description, item_files, item_token, restricted_delivery, terms_and_conditions, 1_u32.into()) }
+        ) -> DispatchResultWithPostInfo { Self::do_add_collection_item(origin, collection_loc_id, item_id, item_description, item_files, item_token, restricted_delivery, terms_and_conditions) }
 
         /// Nominate an issuer
         #[pallet::call_index(14)]
@@ -1590,10 +1590,9 @@ pub mod pallet {
             item_id: T::CollectionItemId,
             item_description: Vec<u8>,
             item_files: Vec<CollectionItemFileOf<T>>,
-            item_token: Option<CollectionItemToken>,
+            item_token: Option<CollectionItemToken<T::TokenIssuance>>,
             restricted_delivery: bool,
             terms_and_conditions: Vec<TermsAndConditionsElement<<T as pallet::Config>::LocId>>,
-            token_issuance: T::TokenIssuance,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
@@ -1609,7 +1608,7 @@ pub mod pallet {
                 Err(Error::<T>::CollectionItemTooMuchData)?
             }
 
-            if item_token.is_some() && token_issuance < 1_u32.into() {
+            if item_token.is_some() && item_token.as_ref().unwrap().token_issuance < 1_u32.into() {
                 Err(Error::<T>::BadTokenIssuance)?
             }
 
@@ -1668,19 +1667,21 @@ pub mod pallet {
                         token: item_token.clone(),
                         restricted_delivery,
                         terms_and_conditions,
-                        token_issuance,
                     };
                     <CollectionItemsMap<T>>::insert(collection_loc_id, item_id, item);
                     let collection_size = <CollectionSizeMap<T>>::get(&collection_loc_id).unwrap_or(0);
                     <CollectionSizeMap<T>>::insert(&collection_loc_id, collection_size + 1);
 
-                    if item_token.is_some() {
-                        let fee = Self::calculate_certificate_fee(token_issuance);
-                        ensure!(T::Currency::can_slash(&who, fee), Error::<T>::InsufficientFunds);
+                    match item_token {
+                        Some(token) => {
+                            let fee = Self::calculate_certificate_fee(token.token_issuance);
+                            ensure!(T::Currency::can_slash(&who, fee), Error::<T>::InsufficientFunds);
 
-                        let (credit, _) = T::Currency::slash(&who, fee);
-                        T::RewardDistributor::distribute(credit, T::CertificateFeeDistributionKey::get());
-                        Self::deposit_event(Event::CertificateFeeWithdrawn(who, fee));
+                            let (credit, _) = T::Currency::slash(&who, fee);
+                            T::RewardDistributor::distribute(credit, T::CertificateFeeDistributionKey::get());
+                            Self::deposit_event(Event::CertificateFeeWithdrawn(who, fee));
+                        }
+                        _ => {}
                     }
                 },
             }

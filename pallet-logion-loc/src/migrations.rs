@@ -5,6 +5,68 @@ use frame_support::weights::Weight;
 use frame_support::traits::OnRuntimeUpgrade;
 
 use crate::{Config, PalletStorageVersion, pallet::StorageVersion};
+use super::*;
+
+
+pub mod v16 {
+    use super::*;
+    use crate::*;
+
+    #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
+    struct CollectionItemV15<Hash, LocId, TokenIssuance> {
+        description: Vec<u8>,
+        files: Vec<CollectionItemFile<Hash>>,
+        token: Option<CollectionItemTokenV15>,
+        restricted_delivery: bool,
+        terms_and_conditions: Vec<TermsAndConditionsElement<LocId>>,
+        token_issuance: TokenIssuance,
+    }
+
+    type CollectionItemV15Of<T> = CollectionItemV15<
+        <T as pallet::Config>::Hash,
+        <T as pallet::Config>::LocId,
+        <T as pallet::Config>::TokenIssuance,
+    >;
+
+    #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
+    struct CollectionItemTokenV15 {
+        pub token_type: Vec<u8>,
+        pub token_id: Vec<u8>,
+    }
+
+
+    pub struct MoveTokenIssuance<T>(sp_std::marker::PhantomData<T>);
+
+    impl<T: Config> OnRuntimeUpgrade for MoveTokenIssuance<T> {
+        fn on_runtime_upgrade() -> Weight {
+            super::do_storage_upgrade::<T, _>(
+                StorageVersion::V15AddTokenIssuance,
+                StorageVersion::V16MoveTokenIssuance,
+                "MoveTokenIssuance",
+                || {
+                    CollectionItemsMap::<T>::translate_values(|item: CollectionItemV15Of<T>| {
+                        let token: Option<CollectionItemToken<T::TokenIssuance>> = match item.token {
+                            Some(token) => Some(CollectionItemToken {
+                                token_type: token.token_type,
+                                token_id: token.token_id,
+                                token_issuance: item.token_issuance,
+                            }),
+                            None => None
+                        };
+                        Some(CollectionItemOf::<T> {
+                            description: item.description,
+                            files: item.files,
+                            token,
+                            restricted_delivery: item.restricted_delivery,
+                            terms_and_conditions: item.terms_and_conditions,
+                        })
+                    })
+                }
+            )
+        }
+    }
+
+}
 
 pub mod v15 {
     use super::*;
@@ -14,7 +76,7 @@ pub mod v15 {
     struct CollectionItemV14<Hash, LocId> {
         description: Vec<u8>,
         files: Vec<CollectionItemFile<Hash>>,
-        token: Option<CollectionItemToken>,
+        token: Option<CollectionItemTokenV14>,
         restricted_delivery: bool,
         terms_and_conditions: Vec<TermsAndConditionsElement<LocId>>,
     }
@@ -24,23 +86,36 @@ pub mod v15 {
         <T as pallet::Config>::LocId,
     >;
 
+    #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
+    struct CollectionItemTokenV14 {
+        pub token_type: Vec<u8>,
+        pub token_id: Vec<u8>,
+    }
+
     pub struct AddTokenIssuance<T>(sp_std::marker::PhantomData<T>);
 
     impl<T: Config> OnRuntimeUpgrade for AddTokenIssuance<T> {
         fn on_runtime_upgrade() -> Weight {
             super::do_storage_upgrade::<T, _>(
                 StorageVersion::V14HashLocPublicData,
-                StorageVersion::V15AddTokenIssuance,
+                StorageVersion::V16MoveTokenIssuance,
                 "AddTokenIssuance",
                 || {
                     CollectionItemsMap::<T>::translate_values(|item: CollectionItemV14Of<T>| {
+                        let token: Option<CollectionItemToken<T::TokenIssuance>> = match item.token {
+                            Some(token) => Some(CollectionItemToken {
+                                token_type: token.token_type,
+                                token_id: token.token_id,
+                                token_issuance: 0u32.into(),
+                            }),
+                            None => None
+                        };
                         Some(CollectionItemOf::<T> {
                             description: item.description,
                             files: item.files,
-                            token: item.token,
+                            token,
                             restricted_delivery: item.restricted_delivery,
                             terms_and_conditions: item.terms_and_conditions,
-                            token_issuance: 0u32.into(),
                         })
                     })
                 }
