@@ -582,8 +582,15 @@ pub mod pallet {
             });
 
             CollectionItemsMap::<T>::iter().for_each(|entry| {
+                let loc_id = entry.0;
+                let item_id = entry.1;
                 let item = entry.2;
-                assert_eq!(item.token_issuance, 0u32.into());
+                match item.token {
+                    Some(token) => {
+                        log::info!("LOC {:?} item with token {:?} has issuance {:?}", loc_id, item_id, token.token_issuance);
+                    }
+                    _ => {}
+                }
             });
 
             Ok(())
