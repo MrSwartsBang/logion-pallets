@@ -128,6 +128,7 @@ pub mod pallet {
     #[pallet::getter(fn pallet_storage_version)]
     pub type PalletStorageVersion<T> = StorageValue<_, StorageVersion, ValueQuery>;
 
+    #[cfg(feature = "std")]
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
         pub legal_officers: Vec<(T::AccountId, GenesisHostData)>,

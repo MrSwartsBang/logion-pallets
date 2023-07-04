@@ -566,7 +566,7 @@ pub mod pallet {
         }
 
         #[cfg(feature = "try-runtime")]
-        fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
+        fn post_upgrade(_state: Vec<u8>) -> Result<(), sp_runtime::DispatchError> {
             LocMap::<T>::iter().for_each(|entry| {
                 let loc_id = entry.0;
                 let loc = entry.1;
