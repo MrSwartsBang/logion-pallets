@@ -8,9 +8,10 @@ use sp_runtime::traits::Hash;
 
 use logion_shared::{Beneficiary, LocQuery, LocValidity};
 
+use crate::TokensRecordFileOf;
 use crate::{
     Error, File, LegalOfficerCase, LocLink, LocType, MetadataItem, CollectionItem, CollectionItemFile,
-    CollectionItemToken, mock::*, TermsAndConditionsElement, TokensRecordFile, UnboundedTokensRecordFileOf,
+    CollectionItemToken, mock::*, TermsAndConditionsElement, TokensRecordFile,
     VerifiedIssuer, OtherAccountId, SupportedAccountId, MetadataItemParams, FileParams, Hasher,
     Requester::{Account, OtherAccount}, fees::*,
 };
@@ -846,7 +847,7 @@ fn it_fails_adding_item_to_open_collection_loc() {
         setup_default_balances();
         assert_ok!(LogionLoc::create_collection_loc(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, LOC_OWNER1, None, Some(10), false));
         let collection_item_id = BlakeTwo256::hash_of(&"item-id".as_bytes().to_vec());
-        let collection_item_description = "item-description".as_bytes().to_vec();
+        let collection_item_description = sha256(&"item-description".as_bytes().to_vec());
         assert_err!(LogionLoc::add_collection_item(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, collection_item_id, collection_item_description, vec![], None, false, Vec::new()), Error::<Test>::WrongCollectionLoc);
     });
 }
@@ -859,7 +860,7 @@ fn it_adds_item_to_closed_collection_loc() {
         assert_ok!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
 
         let collection_item_id = BlakeTwo256::hash_of(&"item-id".as_bytes().to_vec());
-        let collection_item_description = "item-description".as_bytes().to_vec();
+        let collection_item_description = sha256(&"item-description".as_bytes().to_vec());
         assert_ok!(LogionLoc::add_collection_item(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, collection_item_id, collection_item_description.clone(), vec![], None, false, Vec::new()));
         assert_eq!(LogionLoc::collection_items(LOC_ID, collection_item_id), Some(CollectionItem {
             description: collection_item_description,
@@ -880,12 +881,12 @@ fn it_fails_to_item_with_terms_and_conditions_when_non_existent_tc_loc() {
         assert_ok!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
 
         let collection_item_id = BlakeTwo256::hash_of(&"item-id".as_bytes().to_vec());
-        let collection_item_description = "item-description".as_bytes().to_vec();
+        let collection_item_description = sha256(&"item-description".as_bytes().to_vec());
         let terms_and_conditions_details = "ITEM-A, ITEM-B".as_bytes().to_vec();
         let terms_and_conditions = vec![TermsAndConditionsElement {
-            tc_type: "Logion".as_bytes().to_vec(),
+            tc_type: sha256(&"Logion".as_bytes().to_vec()),
             tc_loc: LOGION_CLASSIFICATION_LOC_ID,
-            details: terms_and_conditions_details.clone()
+            details: sha256(&terms_and_conditions_details),
         }];
         assert_err!(LogionLoc::add_collection_item_with_terms_and_conditions(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, collection_item_id, collection_item_description.clone(), vec![], None, false, terms_and_conditions), Error::<Test>::TermsAndConditionsLocNotFound);
     });
@@ -900,12 +901,12 @@ fn it_fails_to_item_with_terms_and_conditions_when_open_tc_loc() {
         assert_ok!(LogionLoc::create_polkadot_transaction_loc(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOGION_CLASSIFICATION_LOC_ID, LOC_OWNER1));
 
         let collection_item_id = BlakeTwo256::hash_of(&"item-id".as_bytes().to_vec());
-        let collection_item_description = "item-description".as_bytes().to_vec();
-        let terms_and_conditions_details = "ITEM-A, ITEM-B".as_bytes().to_vec();
+        let collection_item_description = sha256(&"item-description".as_bytes().to_vec());
+        let terms_and_conditions_details = sha256(&"ITEM-A, ITEM-B".as_bytes().to_vec());
         let terms_and_conditions = vec![TermsAndConditionsElement {
-            tc_type: "Logion".as_bytes().to_vec(),
+            tc_type: sha256(&"Logion".as_bytes().to_vec()),
             tc_loc: LOGION_CLASSIFICATION_LOC_ID,
-            details: terms_and_conditions_details.clone()
+            details: terms_and_conditions_details.clone(),
         }];
         assert_err!(LogionLoc::add_collection_item_with_terms_and_conditions(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, collection_item_id, collection_item_description.clone(), vec![], None, false, terms_and_conditions), Error::<Test>::TermsAndConditionsLocNotClosed);
     });
@@ -921,12 +922,12 @@ fn it_fails_to_item_with_terms_and_conditions_when_void_tc_loc() {
         assert_ok!(LogionLoc::make_void(RuntimeOrigin::signed(LOC_OWNER1), LOGION_CLASSIFICATION_LOC_ID));
 
         let collection_item_id = BlakeTwo256::hash_of(&"item-id".as_bytes().to_vec());
-        let collection_item_description = "item-description".as_bytes().to_vec();
-        let terms_and_conditions_details = "ITEM-A, ITEM-B".as_bytes().to_vec();
+        let collection_item_description = sha256(&"item-description".as_bytes().to_vec());
+        let terms_and_conditions_details = sha256(&"ITEM-A, ITEM-B".as_bytes().to_vec());
         let terms_and_conditions = vec![TermsAndConditionsElement {
-            tc_type: "Logion".as_bytes().to_vec(),
+            tc_type: sha256(&"Logion".as_bytes().to_vec()),
             tc_loc: LOGION_CLASSIFICATION_LOC_ID,
-            details: terms_and_conditions_details.clone()
+            details: terms_and_conditions_details,
         }];
         assert_err!(LogionLoc::add_collection_item_with_terms_and_conditions(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, collection_item_id, collection_item_description.clone(), vec![], None, false, terms_and_conditions), Error::<Test>::TermsAndConditionsLocVoid);
     });
@@ -944,16 +945,16 @@ fn it_adds_item_with_terms_and_conditions_to_closed_collection_loc() {
         assert_ok!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), ADDITIONAL_TC_LOC_ID));
 
         let collection_item_id = BlakeTwo256::hash_of(&"item-id".as_bytes().to_vec());
-        let collection_item_description = "item-description".as_bytes().to_vec();
+        let collection_item_description = sha256(&"item-description".as_bytes().to_vec());
         let tc1 = TermsAndConditionsElement {
-            tc_type: "Logion".as_bytes().to_vec(),
+            tc_type: sha256(&"Logion".as_bytes().to_vec()),
             tc_loc: LOGION_CLASSIFICATION_LOC_ID,
-            details: "ITEM-A, ITEM-B".as_bytes().to_vec().clone()
+            details: sha256(&"ITEM-A, ITEM-B".as_bytes().to_vec()),
         };
         let tc2 = TermsAndConditionsElement {
-            tc_type: "Specific".as_bytes().to_vec(),
+            tc_type: sha256(&"Specific".as_bytes().to_vec()),
             tc_loc: ADDITIONAL_TC_LOC_ID,
-            details: "Some more details".as_bytes().to_vec().clone()
+            details: sha256(&"Some more details".as_bytes().to_vec()),
         };
         let terms_and_conditions = vec![tc1, tc2];
         assert_ok!(LogionLoc::add_collection_item_with_terms_and_conditions(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, collection_item_id, collection_item_description.clone(), vec![], None, false, terms_and_conditions.clone()));
@@ -976,7 +977,7 @@ fn it_fails_adding_item_to_collection_loc_if_not_requester() {
         assert_ok!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
 
         let collection_item_id = BlakeTwo256::hash_of(&"item-id".as_bytes().to_vec());
-        let collection_item_description = "item-description".as_bytes().to_vec();
+        let collection_item_description = sha256(&"item-description".as_bytes().to_vec());
         assert_err!(LogionLoc::add_collection_item(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID, collection_item_id, collection_item_description, vec![], None, false, Vec::new()), Error::<Test>::WrongCollectionLoc);
     });
 }
@@ -989,7 +990,7 @@ fn it_fails_adding_item_if_duplicate_key() {
         assert_ok!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
 
         let collection_item_id = BlakeTwo256::hash_of(&"item-id".as_bytes().to_vec());
-        let collection_item_description = "item-description".as_bytes().to_vec();
+        let collection_item_description = sha256(&"item-description".as_bytes().to_vec());
         assert_ok!(LogionLoc::add_collection_item(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, collection_item_id.clone(), collection_item_description.clone(), vec![], None, false, Vec::new()));
         assert_err!(LogionLoc::add_collection_item(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, collection_item_id, collection_item_description, vec![], None, false, Vec::new()), Error::<Test>::CollectionItemAlreadyExists);
     });
@@ -1003,7 +1004,7 @@ fn it_fails_adding_item_if_size_limit_reached() {
         assert_ok!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
 
         let collection_item_id = BlakeTwo256::hash_of(&"item-id".as_bytes().to_vec());
-        let collection_item_description = "item-description".as_bytes().to_vec();
+        let collection_item_description = sha256(&"item-description".as_bytes().to_vec());
         assert_ok!(LogionLoc::add_collection_item(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, collection_item_id.clone(), collection_item_description.clone(), vec![], None, false, Vec::new()));
         let collection_item_id2 = BlakeTwo256::hash_of(&"item-id2".as_bytes().to_vec());
         assert_err!(LogionLoc::add_collection_item(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, collection_item_id2, collection_item_description, vec![], None, false, Vec::new()), Error::<Test>::CollectionLimitsReached);
@@ -1019,7 +1020,7 @@ fn it_fails_adding_item_if_block_limit_reached() {
         assert_ok!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
 
         let collection_item_id = BlakeTwo256::hash_of(&"item-id".as_bytes().to_vec());
-        let collection_item_description = "item-description".as_bytes().to_vec();
+        let collection_item_description = sha256(&"item-description".as_bytes().to_vec());
         assert_err!(LogionLoc::add_collection_item(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, collection_item_id, collection_item_description, vec![], None, false, Vec::new()), Error::<Test>::CollectionLimitsReached);
     });
 }
@@ -1032,7 +1033,7 @@ fn it_fails_adding_item_if_collection_void() {
         assert_ok!(LogionLoc::make_void(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
 
         let collection_item_id = BlakeTwo256::hash_of(&"item-id".as_bytes().to_vec());
-        let collection_item_description = "item-description".as_bytes().to_vec();
+        let collection_item_description = sha256(&"item-description".as_bytes().to_vec());
         assert_err!(LogionLoc::add_collection_item(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, collection_item_id, collection_item_description, vec![], None, false, Vec::new()), Error::<Test>::WrongCollectionLoc);
     });
 }
@@ -1045,10 +1046,10 @@ fn it_fails_adding_item_if_files_attached_but_upload_not_enabled() {
         assert_ok!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
 
         let collection_item_id = BlakeTwo256::hash_of(&"item-id".as_bytes().to_vec());
-        let collection_item_description = "item-description".as_bytes().to_vec();
+        let collection_item_description = sha256(&"item-description".as_bytes().to_vec());
         let collection_item_files = vec![CollectionItemFile {
-            name: "picture.png".as_bytes().to_vec(),
-            content_type: "image/png".as_bytes().to_vec(),
+            name: sha256(&"picture.png".as_bytes().to_vec()),
+            content_type: sha256(&"image/png".as_bytes().to_vec()),
             hash: BlakeTwo256::hash_of(&"file content".as_bytes().to_vec()),
             size: 123456,
         }];
@@ -1064,7 +1065,7 @@ fn it_adds_item_if_no_files_attached_and_upload_enabled() {
         assert_ok!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
 
         let collection_item_id = BlakeTwo256::hash_of(&"item-id".as_bytes().to_vec());
-        let collection_item_description = "item-description".as_bytes().to_vec();
+        let collection_item_description = sha256(&"item-description".as_bytes().to_vec());
         assert_ok!(LogionLoc::add_collection_item(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, collection_item_id, collection_item_description, vec![], None, false, Vec::new()));
     });
 }
@@ -1077,10 +1078,10 @@ fn it_adds_item_with_one_file_attached() {
         assert_ok!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
 
         let collection_item_id = BlakeTwo256::hash_of(&"item-id".as_bytes().to_vec());
-        let collection_item_description = "item-description".as_bytes().to_vec();
+        let collection_item_description = sha256(&"item-description".as_bytes().to_vec());
         let collection_item_files = vec![CollectionItemFile {
-            name: "picture.png".as_bytes().to_vec(),
-            content_type: "image/png".as_bytes().to_vec(),
+            name: sha256(&"picture.png".as_bytes().to_vec()),
+            content_type: sha256(&"image/png".as_bytes().to_vec()),
             hash: BlakeTwo256::hash_of(&"file content".as_bytes().to_vec()),
             size: FILE_SIZE,
         }];
@@ -1100,10 +1101,10 @@ fn it_fails_adding_item_with_insufficient_balance() {
         set_balance(LOC_REQUESTER_ID, INSUFFICIENT_BALANCE);
 
         let collection_item_id = BlakeTwo256::hash_of(&"item-id".as_bytes().to_vec());
-        let collection_item_description = "item-description".as_bytes().to_vec();
+        let collection_item_description = sha256(&"item-description".as_bytes().to_vec());
         let collection_item_files = vec![CollectionItemFile {
-            name: "picture.png".as_bytes().to_vec(),
-            content_type: "image/png".as_bytes().to_vec(),
+            name: sha256(&"picture.png".as_bytes().to_vec()),
+            content_type: sha256(&"image/png".as_bytes().to_vec()),
             hash: BlakeTwo256::hash_of(&"file content".as_bytes().to_vec()),
             size: FILE_SIZE,
         }];
@@ -1121,16 +1122,16 @@ fn it_adds_item_with_token() {
         assert_ok!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
 
         let collection_item_id = BlakeTwo256::hash_of(&"item-id".as_bytes().to_vec());
-        let collection_item_description = "item-description".as_bytes().to_vec();
+        let collection_item_description = sha256(&"item-description".as_bytes().to_vec());
         let collection_item_files = vec![CollectionItemFile {
-            name: "picture.png".as_bytes().to_vec(),
-            content_type: "image/png".as_bytes().to_vec(),
+            name: sha256(&"picture.png".as_bytes().to_vec()),
+            content_type: sha256(&"image/png".as_bytes().to_vec()),
             hash: BlakeTwo256::hash_of(&"file content".as_bytes().to_vec()),
             size: 123456,
         }];
         let collection_item_token = CollectionItemToken {
-            token_type: "ethereum_erc721".as_bytes().to_vec(),
-            token_id: "{\"contract\":\"0x765df6da33c1ec1f83be42db171d7ee334a46df5\",\"token\":\"4391\"}".as_bytes().to_vec(),
+            token_type: sha256(&"ethereum_erc721".as_bytes().to_vec()),
+            token_id: sha256(&"{\"contract\":\"0x765df6da33c1ec1f83be42db171d7ee334a46df5\",\"token\":\"4391\"}".as_bytes().to_vec()),
             token_issuance: 2,
         };
         let snapshot = BalancesSnapshot::take(LOC_REQUESTER_ID, LOC_OWNER1);
@@ -1146,54 +1147,6 @@ fn it_adds_item_with_token() {
 }
 
 #[test]
-fn it_fails_adding_item_with_too_large_token_type() {
-    new_test_ext().execute_with(|| {
-        setup_default_balances();
-        assert_ok!(LogionLoc::create_collection_loc(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, LOC_OWNER1, None, Some(1), true));
-        assert_ok!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
-
-        let collection_item_id = BlakeTwo256::hash_of(&"item-id".as_bytes().to_vec());
-        let collection_item_description = "item-description".as_bytes().to_vec();
-        let collection_item_files = vec![CollectionItemFile {
-            name: "picture.png".as_bytes().to_vec(),
-            content_type: "image/png".as_bytes().to_vec(),
-            hash: BlakeTwo256::hash_of(&"file content".as_bytes().to_vec()),
-            size: 123456,
-        }];
-        let collection_item_token = CollectionItemToken {
-            token_type: vec![0; 256],
-            token_id: "{\"contract\":\"0x765df6da33c1ec1f83be42db171d7ee334a46df5\",\"token\":\"4391\"}".as_bytes().to_vec(),
-            token_issuance: 1,
-        };
-        assert_err!(LogionLoc::add_collection_item(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, collection_item_id, collection_item_description, collection_item_files, Some(collection_item_token), true, Vec::new()), Error::<Test>::CollectionItemTooMuchData);
-    });
-}
-
-#[test]
-fn it_fails_adding_item_with_too_large_token_id() {
-    new_test_ext().execute_with(|| {
-        setup_default_balances();
-        assert_ok!(LogionLoc::create_collection_loc(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, LOC_OWNER1, None, Some(1), true));
-        assert_ok!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
-
-        let collection_item_id = BlakeTwo256::hash_of(&"item-id".as_bytes().to_vec());
-        let collection_item_description = "item-description".as_bytes().to_vec();
-        let collection_item_files = vec![CollectionItemFile {
-            name: "picture.png".as_bytes().to_vec(),
-            content_type: "image/png".as_bytes().to_vec(),
-            hash: BlakeTwo256::hash_of(&"file content".as_bytes().to_vec()),
-            size: 123456,
-        }];
-        let collection_item_token = CollectionItemToken {
-            token_type: "ethereum_erc721".as_bytes().to_vec(),
-            token_id: vec![0; 256],
-            token_issuance: 1,
-        };
-        assert_err!(LogionLoc::add_collection_item(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, collection_item_id, collection_item_description, collection_item_files, Some(collection_item_token), true, Vec::new()), Error::<Test>::CollectionItemTooMuchData);
-    });
-}
-
-#[test]
 fn it_fails_adding_item_with_missing_token() {
     new_test_ext().execute_with(|| {
         setup_default_balances();
@@ -1201,10 +1154,10 @@ fn it_fails_adding_item_with_missing_token() {
         assert_ok!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
 
         let collection_item_id = BlakeTwo256::hash_of(&"item-id".as_bytes().to_vec());
-        let collection_item_description = "item-description".as_bytes().to_vec();
+        let collection_item_description = sha256(&"item-description".as_bytes().to_vec());
         let collection_item_files = vec![CollectionItemFile {
-            name: "picture.png".as_bytes().to_vec(),
-            content_type: "image/png".as_bytes().to_vec(),
+            name: sha256(&"picture.png".as_bytes().to_vec()),
+            content_type: sha256(&"image/png".as_bytes().to_vec()),
             hash: BlakeTwo256::hash_of(&"file content".as_bytes().to_vec()),
             size: 123456,
         }];
@@ -1220,11 +1173,11 @@ fn it_fails_adding_item_with_missing_files() {
         assert_ok!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
 
         let collection_item_id = BlakeTwo256::hash_of(&"item-id".as_bytes().to_vec());
-        let collection_item_description = "item-description".as_bytes().to_vec();
+        let collection_item_description = sha256(&"item-description".as_bytes().to_vec());
         let collection_item_files = vec![];
         let collection_item_token = CollectionItemToken {
-            token_type: "ethereum_erc721".as_bytes().to_vec(),
-            token_id: "{\"contract\":\"0x765df6da33c1ec1f83be42db171d7ee334a46df5\",\"token\":\"4391\"}".as_bytes().to_vec(),
+            token_type: sha256(&"ethereum_erc721".as_bytes().to_vec()),
+            token_id: sha256(&"{\"contract\":\"0x765df6da33c1ec1f83be42db171d7ee334a46df5\",\"token\":\"4391\"}".as_bytes().to_vec()),
             token_issuance: 1,
         };
         assert_err!(LogionLoc::add_collection_item(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, collection_item_id, collection_item_description, collection_item_files, Some(collection_item_token), true, Vec::new()), Error::<Test>::MissingFiles);
@@ -1239,17 +1192,17 @@ fn it_adds_item_with_two_files_attached() {
         assert_ok!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
 
         let collection_item_id = BlakeTwo256::hash_of(&"item-id".as_bytes().to_vec());
-        let collection_item_description = "item-description".as_bytes().to_vec();
+        let collection_item_description = sha256(&"item-description".as_bytes().to_vec());
         let collection_item_files = vec![
             CollectionItemFile {
-                name: "picture.png".as_bytes().to_vec(),
-                content_type: "image/png".as_bytes().to_vec(),
+                name: sha256(&"picture.png".as_bytes().to_vec()),
+                content_type: sha256(&"image/png".as_bytes().to_vec()),
                 hash: BlakeTwo256::hash_of(&"file content".as_bytes().to_vec()),
                 size: 123456,
             },
             CollectionItemFile {
-                name: "doc.pdf".as_bytes().to_vec(),
-                content_type: "application/pdf".as_bytes().to_vec(),
+                name: sha256(&"doc.pdf".as_bytes().to_vec()),
+                content_type: sha256(&"application/pdf".as_bytes().to_vec()),
                 hash: BlakeTwo256::hash_of(&"some other content".as_bytes().to_vec()),
                 size: 789,
             },
@@ -1270,18 +1223,18 @@ fn it_fails_to_add_item_with_duplicate_hash() {
         assert_ok!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
 
         let collection_item_id = BlakeTwo256::hash_of(&"item-id".as_bytes().to_vec());
-        let collection_item_description = "item-description".as_bytes().to_vec();
+        let collection_item_description = sha256(&"item-description".as_bytes().to_vec());
         let same_hash = BlakeTwo256::hash_of(&"file content".as_bytes().to_vec());
         let collection_item_files = vec![
             CollectionItemFile {
-                name: "picture.png".as_bytes().to_vec(),
-                content_type: "image/png".as_bytes().to_vec(),
+                name: sha256(&"picture.png".as_bytes().to_vec()),
+                content_type: sha256(&"image/png".as_bytes().to_vec()),
                 hash: same_hash,
                 size: 123456,
             },
             CollectionItemFile {
-                name: "doc.pdf".as_bytes().to_vec(),
-                content_type: "application/pdf".as_bytes().to_vec(),
+                name: sha256(&"doc.pdf".as_bytes().to_vec()),
+                content_type: sha256(&"application/pdf".as_bytes().to_vec()),
                 hash: same_hash,
                 size: 789,
             },
@@ -1594,11 +1547,11 @@ fn it_adds_tokens_record(submitter: AccountId) {
         assert_ok!(LogionLoc::add_tokens_record(RuntimeOrigin::signed(submitter), LOC_ID, record_id, record_description.clone(), record_files.clone()));
 
         let record = LogionLoc::tokens_records(LOC_ID, record_id).unwrap();
-        assert_eq!(record.description.to_vec(), record_description);
+        assert_eq!(record.description, record_description);
         assert_eq!(record.submitter, submitter);
         assert_eq!(record.files.len(), 1);
-        assert_eq!(record.files[0].name.to_vec(), record_files[0].name);
-        assert_eq!(record.files[0].content_type.to_vec(), record_files[0].content_type);
+        assert_eq!(record.files[0].name, record_files[0].name);
+        assert_eq!(record.files[0].content_type, record_files[0].content_type);
         assert_eq!(record.files[0].size, record_files[0].size);
         assert_eq!(record.files[0].hash, record_files[0].hash);
 
@@ -1616,16 +1569,16 @@ fn build_record_id() -> H256 {
     BlakeTwo256::hash_of(&"Record ID".as_bytes().to_vec())
 }
 
-fn build_record_description() -> Vec<u8> {
-    "Some description".as_bytes().to_vec()
+fn build_record_description() -> H256 {
+    sha256(&"Some description".as_bytes().to_vec())
 }
 
-fn build_record_files(files: usize) -> Vec<UnboundedTokensRecordFileOf<Test>> {
+fn build_record_files(files: usize) -> Vec<TokensRecordFileOf<Test>> {
     let mut record_files = Vec::with_capacity(files);
     for i in 0..files {
         let file = TokensRecordFile {
-            name: "File name".as_bytes().to_vec(),
-            content_type: "text/plain".as_bytes().to_vec(),
+            name: sha256(&"File name".as_bytes().to_vec()),
+            content_type: sha256(&"text/plain".as_bytes().to_vec()),
             size: i as u32 % 10,
             hash: BlakeTwo256::hash_of(&i.to_string().as_bytes().to_vec()),
         };
@@ -1737,71 +1690,20 @@ fn it_fails_adding_tokens_record_duplicate_file() {
         let record_id = build_record_id();
         let record_description = build_record_description();
         let file1 = TokensRecordFile {
-            name: "File name".as_bytes().to_vec(),
-            content_type: "text/plain".as_bytes().to_vec(),
+            name: sha256(&"File name".as_bytes().to_vec()),
+            content_type: sha256(&"text/plain".as_bytes().to_vec()),
             size: 4,
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
         };
         let file2 = TokensRecordFile {
-            name: "File name 2".as_bytes().to_vec(),
-            content_type: "text/plain".as_bytes().to_vec(),
+            name: sha256(&"File name 2".as_bytes().to_vec()),
+            content_type: sha256(&"text/plain".as_bytes().to_vec()),
             size: 4,
             hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
         };
         let record_files = vec![file1, file2];
 
         assert_err!(LogionLoc::add_tokens_record(RuntimeOrigin::signed(ISSUER_ID1), LOC_ID, record_id, record_description, record_files), Error::<Test>::DuplicateFile);
-    });
-}
-
-#[test]
-fn it_fails_adding_tokens_record_description_too_large() {
-    new_test_ext().execute_with(|| {
-        setup_default_balances();
-        create_closed_collection_with_selected_issuer();
-        let record_id = build_record_id();
-        let record_description = vec![0; 256];
-        let record_files = build_record_files(1);
-
-        assert_err!(LogionLoc::add_tokens_record(RuntimeOrigin::signed(ISSUER_ID1), LOC_ID, record_id, record_description, record_files), Error::<Test>::TokensRecordTooMuchData);
-    });
-}
-
-#[test]
-fn it_fails_adding_tokens_record_file_name_too_large() {
-    new_test_ext().execute_with(|| {
-        setup_default_balances();
-        create_closed_collection_with_selected_issuer();
-        let record_id = build_record_id();
-        let record_description = build_record_description();
-        let file1 = TokensRecordFile {
-            name: vec![0; 256],
-            content_type: "text/plain".as_bytes().to_vec(),
-            size: 4,
-            hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
-        };
-        let record_files = vec![file1];
-
-        assert_err!(LogionLoc::add_tokens_record(RuntimeOrigin::signed(ISSUER_ID1), LOC_ID, record_id, record_description, record_files), Error::<Test>::TokensRecordTooMuchData);
-    });
-}
-
-#[test]
-fn it_fails_adding_tokens_record_file_content_type_too_large() {
-    new_test_ext().execute_with(|| {
-        setup_default_balances();
-        create_closed_collection_with_selected_issuer();
-        let record_id = build_record_id();
-        let record_description = build_record_description();
-        let file1 = TokensRecordFile {
-            name: "File name".as_bytes().to_vec(),
-            content_type: vec![0; 256],
-            size: 4,
-            hash: BlakeTwo256::hash_of(&"test".as_bytes().to_vec()),
-        };
-        let record_files = vec![file1];
-
-        assert_err!(LogionLoc::add_tokens_record(RuntimeOrigin::signed(ISSUER_ID1), LOC_ID, record_id, record_description, record_files), Error::<Test>::TokensRecordTooMuchData);
     });
 }
 
@@ -2210,16 +2112,16 @@ fn it_fails_adding_item_with_token_with_zero_issuance() {
         assert_ok!(LogionLoc::close(RuntimeOrigin::signed(LOC_OWNER1), LOC_ID));
 
         let collection_item_id = BlakeTwo256::hash_of(&"item-id".as_bytes().to_vec());
-        let collection_item_description = "item-description".as_bytes().to_vec();
+        let collection_item_description = sha256(&"item-description".as_bytes().to_vec());
         let collection_item_files = vec![CollectionItemFile {
-            name: "picture.png".as_bytes().to_vec(),
-            content_type: "image/png".as_bytes().to_vec(),
+            name: sha256(&"picture.png".as_bytes().to_vec()),
+            content_type: sha256(&"image/png".as_bytes().to_vec()),
             hash: BlakeTwo256::hash_of(&"file content".as_bytes().to_vec()),
             size: 123456,
         }];
         let collection_item_token = CollectionItemToken {
-            token_type: "ethereum_erc721".as_bytes().to_vec(),
-            token_id: "{\"contract\":\"0x765df6da33c1ec1f83be42db171d7ee334a46df5\",\"token\":\"4391\"}".as_bytes().to_vec(),
+            token_type: sha256(&"ethereum_erc721".as_bytes().to_vec()),
+            token_id: sha256(&"{\"contract\":\"0x765df6da33c1ec1f83be42db171d7ee334a46df5\",\"token\":\"4391\"}".as_bytes().to_vec()),
             token_issuance: 0,
         };
         assert_err!(LogionLoc::add_collection_item(RuntimeOrigin::signed(LOC_REQUESTER_ID), LOC_ID, collection_item_id, collection_item_description, collection_item_files.clone(), Some(collection_item_token), true, Vec::new()), Error::<Test>::BadTokenIssuance);
