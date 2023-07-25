@@ -150,19 +150,19 @@ pub type LegalOfficerCaseOf<T> = LegalOfficerCase<
 >;
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-pub struct TermsAndConditionsElement<LocId> {
-    tc_type: Vec<u8>,
+pub struct TermsAndConditionsElement<LocId, Hash> {
+    tc_type: Hash,
     tc_loc: LocId,
-    details: Vec<u8>,
+    details: Hash,
 }
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
 pub struct CollectionItem<Hash, LocId, TokenIssuance> {
-    description: Vec<u8>,
+    description: Hash,
     files: Vec<CollectionItemFile<Hash>>,
-    token: Option<CollectionItemToken<TokenIssuance>>,
+    token: Option<CollectionItemToken<TokenIssuance, Hash>>,
     restricted_delivery: bool,
-    terms_and_conditions: Vec<TermsAndConditionsElement<LocId>>,
+    terms_and_conditions: Vec<TermsAndConditionsElement<LocId, Hash>>,
 }
 
 pub type CollectionItemOf<T> = CollectionItem<
@@ -173,8 +173,8 @@ pub type CollectionItemOf<T> = CollectionItem<
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
 pub struct CollectionItemFile<Hash> {
-    name: Vec<u8>,
-    content_type: Vec<u8>,
+    name: Hash,
+    content_type: Hash,
     size: u32,
     hash: Hash,
 }
@@ -182,9 +182,9 @@ pub struct CollectionItemFile<Hash> {
 pub type CollectionItemFileOf<T> = CollectionItemFile<<T as pallet::Config>::Hash>;
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-pub struct CollectionItemToken<TokenIssuance> {
-    token_type: Vec<u8>,
-    token_id: Vec<u8>,
+pub struct CollectionItemToken<TokenIssuance, Hash> {
+    token_type: Hash,
+    token_id: Hash,
     token_issuance: TokenIssuance,
 }
 
@@ -198,36 +198,31 @@ pub type VerifiedIssuerOf<T> = VerifiedIssuer<
 >;
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-pub struct TokensRecord<BoundedDescription, BoundedTokensRecordFilesList, AccountId> {
-    description: BoundedDescription,
+pub struct TokensRecord<Hash, BoundedTokensRecordFilesList, AccountId> {
+    description: Hash,
     files: BoundedTokensRecordFilesList,
     submitter: AccountId,
 }
 
 pub type TokensRecordOf<T> = TokensRecord<
-    BoundedVec<u8, <T as pallet::Config>::MaxTokensRecordDescriptionSize>,
-    BoundedVec<TokensRecordFileOf<T>, <T as pallet::Config>::MaxTokensRecordFiles>,
+    <T as pallet::Config>::Hash,
+    BoundedVec<
+        TokensRecordFileOf<T>,
+        <T as pallet::Config>::MaxTokensRecordFiles
+    >,
     <T as frame_system::Config>::AccountId,
 >;
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-pub struct TokensRecordFile<Hash, BoundedName, BoundedContentType> {
-    name: BoundedName,
-    content_type: BoundedContentType,
+pub struct TokensRecordFile<Hash> {
+    name: Hash,
+    content_type: Hash,
     size: u32,
     hash: Hash,
 }
 
 pub type TokensRecordFileOf<T> = TokensRecordFile<
     <T as pallet::Config>::Hash,
-    BoundedVec<u8, <T as pallet::Config>::MaxFileNameSize>,
-    BoundedVec<u8, <T as pallet::Config>::MaxFileContentTypeSize>,
->;
-
-pub type UnboundedTokensRecordFileOf<T> = TokensRecordFile<
-    <T as pallet::Config>::Hash,
-    Vec<u8>,
-    Vec<u8>,
 >;
 
 pub type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -393,7 +388,13 @@ pub mod pallet {
     /// Collection tokens records by LOC ID and record ID.
     #[pallet::storage]
     #[pallet::getter(fn tokens_records)]
-    pub type TokensRecordsMap<T> = StorageDoubleMap<_, Blake2_128Concat, <T as Config>::LocId, Blake2_128Concat, <T as Config>::TokensRecordId, TokensRecordOf<T>>;
+    pub type TokensRecordsMap<T> = StorageDoubleMap<
+        _,
+        Blake2_128Concat,
+        <T as Config>::LocId, Blake2_128Concat,
+        <T as Config>::TokensRecordId,
+        TokensRecordOf<T>
+    >;
 
     /// Verified Issuers by guardian
     #[pallet::storage]
@@ -567,30 +568,35 @@ pub mod pallet {
 
         #[cfg(feature = "try-runtime")]
         fn post_upgrade(_state: Vec<u8>) -> Result<(), sp_runtime::DispatchError> {
-            LocMap::<T>::iter().for_each(|entry| {
-                let loc_id = entry.0;
-                let loc = entry.1;
-                loc.metadata.iter().for_each(|metadata| {
-                    log::info!("LOC {:?} metadata {:?} value {:?}", loc_id, metadata.name, metadata.value);
-                });
-                loc.files.iter().for_each(|file| {
-                    log::info!("LOC {:?} file {:?} nature {:?}", loc_id, file.hash, file.nature);
-                });
-                loc.links.iter().for_each(|link| {
-                    log::info!("LOC {:?} link {:?} nature {:?}", loc_id, link.id, link.nature);
-                });
-            });
-
             CollectionItemsMap::<T>::iter().for_each(|entry| {
                 let loc_id = entry.0;
                 let item_id = entry.1;
                 let item = entry.2;
-                match item.token {
-                    Some(token) => {
-                        log::info!("LOC {:?} item with token {:?} has issuance {:?}", loc_id, item_id, token.token_issuance);
-                    }
-                    _ => {}
+                log::info!("LOC {:?} item {:?} description {:?}", loc_id, item_id, item.description);
+
+                item.files.iter().for_each(|file| {
+                    log::info!("LOC {:?} item {:?} file {:?} name {:?} content type {:?}", loc_id, item_id, file.hash, file.name, file.content_type);
+                });
+
+                if item.token.is_some() {
+                    let token = item.token.unwrap();
+                    log::info!("LOC {:?} item {:?} token id {:?} type {:?}", loc_id, item_id, token.token_id, token.token_type);
                 }
+
+                item.terms_and_conditions.iter().for_each(|terms| {
+                    log::info!("LOC {:?} item {:?} terms type {:?} details type {:?}", loc_id, item_id, terms.tc_type, terms.details);
+                });
+            });
+
+            TokensRecordsMap::<T>::iter().for_each(|entry| {
+                let loc_id = entry.0;
+                let record_id = entry.1;
+                let record = entry.2;
+                log::info!("LOC {:?} record {:?} description {:?}", loc_id, record_id, record.description);
+
+                record.files.iter().for_each(|file| {
+                    log::info!("LOC {:?} record {:?} file {:?} name {:?} content type {:?}", loc_id, record_id, file.hash, file.name, file.content_type);
+                });
             });
 
             Ok(())
@@ -615,11 +621,12 @@ pub mod pallet {
         V14HashLocPublicData,
         V15AddTokenIssuance,
         V16MoveTokenIssuance,
+        V17HashItemRecordPublicData,
     }
 
     impl Default for StorageVersion {
         fn default() -> StorageVersion {
-            return StorageVersion::V16MoveTokenIssuance;
+            return StorageVersion::V17HashItemRecordPublicData;
         }
     }
 
@@ -964,11 +971,11 @@ pub mod pallet {
             origin: OriginFor<T>,
             #[pallet::compact] collection_loc_id: T::LocId,
             item_id: T::CollectionItemId,
-            item_description: Vec<u8>,
+            item_description: <T as Config>::Hash,
             item_files: Vec<CollectionItemFileOf<T>>,
-            item_token: Option<CollectionItemToken<T::TokenIssuance>>,
+            item_token: Option<CollectionItemToken<T::TokenIssuance, <T as Config>::Hash>>,
             restricted_delivery: bool,
-            terms_and_conditions: Vec<TermsAndConditionsElement<<T as pallet::Config>::LocId>>,
+            terms_and_conditions: Vec<TermsAndConditionsElement<T::LocId, <T as Config>::Hash>>,
         ) -> DispatchResultWithPostInfo { Self::do_add_collection_item(origin, collection_loc_id, item_id, item_description, item_files, item_token, restricted_delivery, terms_and_conditions) }
 
         /// Adds an item with terms and conditions to a collection
@@ -980,11 +987,11 @@ pub mod pallet {
             origin: OriginFor<T>,
             #[pallet::compact] collection_loc_id: T::LocId,
             item_id: T::CollectionItemId,
-            item_description: Vec<u8>,
+            item_description: <T as Config>::Hash,
             item_files: Vec<CollectionItemFileOf<T>>,
-            item_token: Option<CollectionItemToken<T::TokenIssuance>>,
+            item_token: Option<CollectionItemToken<T::TokenIssuance, <T as Config>::Hash>>,
             restricted_delivery: bool,
-            terms_and_conditions: Vec<TermsAndConditionsElement<<T as pallet::Config>::LocId>>,
+            terms_and_conditions: Vec<TermsAndConditionsElement<<T as pallet::Config>::LocId, <T as Config>::Hash>>,
         ) -> DispatchResultWithPostInfo { Self::do_add_collection_item(origin, collection_loc_id, item_id, item_description, item_files, item_token, restricted_delivery, terms_and_conditions) }
 
         /// Nominate an issuer
@@ -1085,8 +1092,8 @@ pub mod pallet {
             origin: OriginFor<T>,
             #[pallet::compact] collection_loc_id: T::LocId,
             record_id: T::TokensRecordId,
-            description: Vec<u8>,
-            files: Vec<UnboundedTokensRecordFileOf<T>>,
+            description: <T as Config>::Hash,
+            files: Vec<TokensRecordFileOf<T>>,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
@@ -1111,20 +1118,9 @@ pub mod pallet {
                         }
                     }
 
-                    let bounded_description: BoundedVec<u8, T::MaxTokensRecordDescriptionSize> =
-                        description.clone().try_into().map_err(|_| Error::<T>::TokensRecordTooMuchData)?;
                     let mut bounded_files: BoundedVec<TokensRecordFileOf<T>, T::MaxTokensRecordFiles> = BoundedVec::with_bounded_capacity(files.len());
-                    for unbounded_file in files.iter() {
-                        let bounded_name =
-                            unbounded_file.name.clone().try_into().map_err(|_| Error::<T>::TokensRecordTooMuchData)?;
-                        let bounded_content_type =
-                            unbounded_file.content_type.clone().try_into().map_err(|_| Error::<T>::TokensRecordTooMuchData)?;
-                        bounded_files.try_push(TokensRecordFile {
-                            name: bounded_name,
-                            content_type: bounded_content_type,
-                            hash: unbounded_file.hash,
-                            size: unbounded_file.size,
-                        }).map_err(|_| Error::<T>::TokensRecordTooMuchData)?;
+                    for file in files.iter() {
+                        bounded_files.try_push(file.clone()).map_err(|_| Error::<T>::TokensRecordTooMuchData)?;
                     }
                     let fee_payer = match collection_loc.requester {
                         Account(requester_account) => requester_account,
@@ -1136,7 +1132,7 @@ pub mod pallet {
                         .fold(0, |tot, current| tot + current);
                     Self::apply_file_storage_fee(&fee_payer, files.len(), tot_size)?;
                     let record = TokensRecord {
-                        description: bounded_description,
+                        description,
                         files: bounded_files,
                         submitter: who,
                     };
@@ -1595,25 +1591,13 @@ pub mod pallet {
             origin: OriginFor<T>,
             collection_loc_id: T::LocId,
             item_id: T::CollectionItemId,
-            item_description: Vec<u8>,
+            item_description: <T as Config>::Hash,
             item_files: Vec<CollectionItemFileOf<T>>,
-            item_token: Option<CollectionItemToken<T::TokenIssuance>>,
+            item_token: Option<CollectionItemToken<T::TokenIssuance, <T as Config>::Hash>>,
             restricted_delivery: bool,
-            terms_and_conditions: Vec<TermsAndConditionsElement<<T as pallet::Config>::LocId>>,
+            terms_and_conditions: Vec<TermsAndConditionsElement<T::LocId, <T as Config>::Hash>>,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
-
-            if item_description.len() > T::MaxCollectionItemDescriptionSize::get() {
-                Err(Error::<T>::CollectionItemTooMuchData)?
-            }
-
-            if item_token.is_some() && item_token.as_ref().unwrap().token_type.len() > T::MaxCollectionItemTokenTypeSize::get() {
-                Err(Error::<T>::CollectionItemTooMuchData)?
-            }
-
-            if item_token.is_some() && item_token.as_ref().unwrap().token_id.len() > T::MaxCollectionItemTokenIdSize::get() {
-                Err(Error::<T>::CollectionItemTooMuchData)?
-            }
 
             if item_token.is_some() && item_token.as_ref().unwrap().token_issuance < 1_u32.into() {
                 Err(Error::<T>::BadTokenIssuance)?
@@ -1669,8 +1653,8 @@ pub mod pallet {
                         .fold(0, |tot, current| tot + current);
                     Self::apply_file_storage_fee(&who, item_files.len(), tot_size)?;
                     let item = CollectionItem {
-                        description: item_description.clone(),
-                        files: item_files.clone(),
+                        description: item_description,
+                        files: item_files,
                         token: item_token.clone(),
                         restricted_delivery,
                         terms_and_conditions,

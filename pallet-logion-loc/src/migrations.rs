@@ -8,235 +8,151 @@ use crate::{Config, PalletStorageVersion, pallet::StorageVersion};
 use super::*;
 
 
-pub mod v16 {
+pub mod v17 {
     use super::*;
     use crate::*;
 
     #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-    struct CollectionItemV15<Hash, LocId, TokenIssuance> {
+    pub struct CollectionItemV16<Hash, LocId, TokenIssuance> {
         description: Vec<u8>,
-        files: Vec<CollectionItemFile<Hash>>,
-        token: Option<CollectionItemTokenV15>,
+        files: Vec<CollectionItemFileV16<Hash>>,
+        token: Option<CollectionItemTokenV16<TokenIssuance>>,
         restricted_delivery: bool,
-        terms_and_conditions: Vec<TermsAndConditionsElement<LocId>>,
-        token_issuance: TokenIssuance,
+        terms_and_conditions: Vec<TermsAndConditionsElementV16<LocId>>,
     }
 
-    type CollectionItemV15Of<T> = CollectionItemV15<
+    pub type CollectionItemV16Of<T> = CollectionItemV16<
         <T as pallet::Config>::Hash,
         <T as pallet::Config>::LocId,
         <T as pallet::Config>::TokenIssuance,
     >;
 
     #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-    struct CollectionItemTokenV15 {
-        pub token_type: Vec<u8>,
-        pub token_id: Vec<u8>,
-    }
-
-
-    pub struct MoveTokenIssuance<T>(sp_std::marker::PhantomData<T>);
-
-    impl<T: Config> OnRuntimeUpgrade for MoveTokenIssuance<T> {
-        fn on_runtime_upgrade() -> Weight {
-            super::do_storage_upgrade::<T, _>(
-                StorageVersion::V15AddTokenIssuance,
-                StorageVersion::V16MoveTokenIssuance,
-                "MoveTokenIssuance",
-                || {
-                    CollectionItemsMap::<T>::translate_values(|item: CollectionItemV15Of<T>| {
-                        let token: Option<CollectionItemToken<T::TokenIssuance>> = match item.token {
-                            Some(token) => Some(CollectionItemToken {
-                                token_type: token.token_type,
-                                token_id: token.token_id,
-                                token_issuance: item.token_issuance,
-                            }),
-                            None => None
-                        };
-                        Some(CollectionItemOf::<T> {
-                            description: item.description,
-                            files: item.files,
-                            token,
-                            restricted_delivery: item.restricted_delivery,
-                            terms_and_conditions: item.terms_and_conditions,
-                        })
-                    })
-                }
-            )
-        }
-    }
-
-}
-
-pub mod v15 {
-    use super::*;
-    use crate::*;
-
-    #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-    struct CollectionItemV14<Hash, LocId> {
-        description: Vec<u8>,
-        files: Vec<CollectionItemFile<Hash>>,
-        token: Option<CollectionItemTokenV14>,
-        restricted_delivery: bool,
-        terms_and_conditions: Vec<TermsAndConditionsElement<LocId>>,
-    }
-
-    type CollectionItemV14Of<T> = CollectionItemV14<
-        <T as pallet::Config>::Hash,
-        <T as pallet::Config>::LocId,
-    >;
-
-    #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-    struct CollectionItemTokenV14 {
-        pub token_type: Vec<u8>,
-        pub token_id: Vec<u8>,
-    }
-
-    pub struct AddTokenIssuance<T>(sp_std::marker::PhantomData<T>);
-
-    impl<T: Config> OnRuntimeUpgrade for AddTokenIssuance<T> {
-        fn on_runtime_upgrade() -> Weight {
-            super::do_storage_upgrade::<T, _>(
-                StorageVersion::V14HashLocPublicData,
-                StorageVersion::V16MoveTokenIssuance,
-                "AddTokenIssuance",
-                || {
-                    CollectionItemsMap::<T>::translate_values(|item: CollectionItemV14Of<T>| {
-                        let token: Option<CollectionItemToken<T::TokenIssuance>> = match item.token {
-                            Some(token) => Some(CollectionItemToken {
-                                token_type: token.token_type,
-                                token_id: token.token_id,
-                                token_issuance: 0u32.into(),
-                            }),
-                            None => None
-                        };
-                        Some(CollectionItemOf::<T> {
-                            description: item.description,
-                            files: item.files,
-                            token,
-                            restricted_delivery: item.restricted_delivery,
-                            terms_and_conditions: item.terms_and_conditions,
-                        })
-                    })
-                }
-            )
-        }
-    }
-}
-
-pub mod v14 {
-    use super::*;
-    use crate::*;
-
-    #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-    pub struct MetadataItemV13<AccountId, EthereumAddress> {
+    pub struct CollectionItemFileV16<Hash> {
         name: Vec<u8>,
-        value: Vec<u8>,
-        submitter: SupportedAccountId<AccountId, EthereumAddress>,
-        acknowledged: bool,
-    }
-
-    type MetadataItemV13Of<T> = MetadataItemV13<<T as frame_system::Config>::AccountId, <T as pallet::Config>::EthereumAddress>;
-
-    #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-    struct FileV13<Hash, AccountId, EthereumAddress> {
-        hash: Hash,
-        nature: Vec<u8>,
-        submitter: SupportedAccountId<AccountId, EthereumAddress>,
+        content_type: Vec<u8>,
         size: u32,
-        acknowledged: bool,
+        hash: Hash,
     }
 
-    type FileV13Of<T> = FileV13<<T as pallet::Config>::Hash, <T as frame_system::Config>::AccountId, <T as pallet::Config>::EthereumAddress>;
+    pub type CollectionItemFileV16Of<T> = CollectionItemFileV16<<T as pallet::Config>::Hash>;
 
     #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-    pub struct LocLinkV13<LocId> {
-        id: LocId,
-        nature: Vec<u8>,
+    pub struct CollectionItemTokenV16<TokenIssuance> {
+        token_type: Vec<u8>,
+        token_id: Vec<u8>,
+        token_issuance: TokenIssuance,
     }
-
-    type LocLinkV13Of<T> = LocLinkV13<<T as pallet::Config>::LocId>;
 
     #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
-    pub struct LegalOfficerCaseV13<AccountId, Hash, LocId, BlockNumber, EthereumAddress, SponsorshipId> {
-        owner: AccountId,
-        requester: Requester<AccountId, LocId, EthereumAddress>,
-        metadata: Vec<MetadataItemV13<AccountId, EthereumAddress>>,
-        files: Vec<FileV13<Hash, AccountId, EthereumAddress>>,
-        closed: bool,
-        loc_type: LocType,
-        links: Vec<LocLinkV13<LocId>>,
-        void_info: Option<LocVoidInfo<LocId>>,
-        replacer_of: Option<LocId>,
-        collection_last_block_submission: Option<BlockNumber>,
-        collection_max_size: Option<CollectionSize>,
-        collection_can_upload: bool,
-        seal: Option<Hash>,
-        sponsorship_id: Option<SponsorshipId>,
+    pub struct TermsAndConditionsElementV16<LocId> {
+        tc_type: Vec<u8>,
+        tc_loc: LocId,
+        details: Vec<u8>,
     }
 
-    type LegalOfficerCaseV13Of<T> = LegalOfficerCaseV13<
+    #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
+    pub struct TokensRecordV16<BoundedDescription, BoundedTokensRecordFilesList, AccountId> {
+        description: BoundedDescription,
+        files: BoundedTokensRecordFilesList,
+        submitter: AccountId,
+    }
+
+    pub type TokensRecordV16Of<T> = TokensRecordV16<
+        BoundedVec<u8, <T as pallet::Config>::MaxTokensRecordDescriptionSize>,
+        BoundedVec<TokensRecordFileV16Of<T>, <T as pallet::Config>::MaxTokensRecordFiles>,
         <T as frame_system::Config>::AccountId,
-        <T as pallet::Config>::Hash,
-        <T as pallet::Config>::LocId,
-        <T as frame_system::Config>::BlockNumber,
-        <T as pallet::Config>::EthereumAddress,
-        <T as pallet::Config>::SponsorshipId,
     >;
 
-    pub struct HashLocPublicData<T>(sp_std::marker::PhantomData<T>);
+    #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug, TypeInfo)]
+    pub struct TokensRecordFileV16<Hash, BoundedName, BoundedContentType> {
+        name: BoundedName,
+        content_type: BoundedContentType,
+        size: u32,
+        hash: Hash,
+    }
 
-    impl<T: Config> OnRuntimeUpgrade for HashLocPublicData<T> {
+    pub type TokensRecordFileV16Of<T> = TokensRecordFileV16<
+        <T as pallet::Config>::Hash,
+        BoundedVec<u8, <T as pallet::Config>::MaxFileNameSize>,
+        BoundedVec<u8, <T as pallet::Config>::MaxFileContentTypeSize>,
+    >;
+
+    pub type UnboundedTokensRecordFileV16Of<T> = TokensRecordFileV16<
+        <T as pallet::Config>::Hash,
+        Vec<u8>,
+        Vec<u8>,
+    >;
+
+    pub struct HashItemRecordPublicData<T>(sp_std::marker::PhantomData<T>);
+
+    impl<T: Config> OnRuntimeUpgrade for HashItemRecordPublicData<T> {
         fn on_runtime_upgrade() -> Weight {
             super::do_storage_upgrade::<T, _>(
-                StorageVersion::V13AcknowledgeItems,
-                StorageVersion::V14HashLocPublicData,
-                "HashLocPublicData",
+                StorageVersion::V16MoveTokenIssuance,
+                StorageVersion::V17HashItemRecordPublicData,
+                "HashItemRecordPublicData",
                 || {
-                    LocMap::<T>::translate_values(|loc: LegalOfficerCaseV13Of<T>| {
-                        let files: Vec<File<<T as pallet::Config>::Hash, <T as frame_system::Config>::AccountId, T::EthereumAddress>> = loc.files
-                            .iter()
-                            .map(|file: &FileV13Of<T>| File {
-                                hash: file.hash,
-                                nature: T::Hasher::hash(&file.nature).into(),
-                                submitter: file.submitter.clone(),
-                                size: file.size,
-                                acknowledged: file.acknowledged,
+                    CollectionItemsMap::<T>::translate_values(|item: CollectionItemV16Of<T>| {
+                        let description = T::Hasher::hash(&item.description).into();
+
+                        let files = item.files.iter()
+                            .map(|file| {
+                                CollectionItemFile {
+                                    name: T::Hasher::hash(&file.name).into(),
+                                    content_type: T::Hasher::hash(&file.content_type).into(),
+                                    size: file.size,
+                                    hash: file.hash,
+                                }
                             })
                             .collect();
-                        let metadata: Vec<MetadataItem<<T as frame_system::Config>::AccountId, T::EthereumAddress, <T as pallet::Config>::Hash>> = loc.metadata
-                            .iter()
-                            .map(|item: &MetadataItemV13Of<T>| MetadataItem {
-                                name: T::Hasher::hash(&item.name),
-                                value: T::Hasher::hash(&item.value),
-                                submitter: item.submitter.clone(),
-                                acknowledged: item.acknowledged,
+
+                        let terms_and_conditions = item.terms_and_conditions.iter()
+                            .map(|terms| {
+                                TermsAndConditionsElement {
+                                    details: T::Hasher::hash(&terms.details).into(),
+                                    tc_loc: terms.tc_loc,
+                                    tc_type: T::Hasher::hash(&terms.tc_type).into(),
+                                }
                             })
                             .collect();
-                        let links: Vec<LocLink<<T as pallet::Config>::LocId, <T as pallet::Config>::Hash>> = loc.links
-                            .iter()
-                            .map(|link: &LocLinkV13Of<T>| LocLink {
-                                id: link.id.clone(),
-                                nature: T::Hasher::hash(&link.nature),
-                            })
-                            .collect();
-                        Some(LegalOfficerCaseOf::<T> {
-                            owner: loc.owner,
-                            requester: loc.requester,
-                            metadata,
+
+                        let token = item.token.map(|some_token| {
+                            CollectionItemToken {
+                                token_id: T::Hasher::hash(&some_token.token_id).into(),
+                                token_issuance: some_token.token_issuance,
+                                token_type: T::Hasher::hash(&some_token.token_type).into(),
+                            }
+                        });
+
+                        Some(CollectionItem {
+                            description,
                             files,
-                            closed: loc.closed,
-                            loc_type: loc.loc_type,
-                            links,
-                            void_info: loc.void_info,
-                            replacer_of: loc.replacer_of,
-                            collection_last_block_submission: loc.collection_last_block_submission,
-                            collection_max_size: loc.collection_max_size,
-                            collection_can_upload: loc.collection_can_upload,
-                            seal: loc.seal,
-                            sponsorship_id: loc.sponsorship_id,
+                            restricted_delivery: item.restricted_delivery,
+                            terms_and_conditions,
+                            token,
                         })
-                    })
+                    });
+
+                    TokensRecordsMap::<T>::translate_values(|record: TokensRecordV16Of<T>| {
+                        let description = T::Hasher::hash(&record.description).into();
+
+                        let mut files: BoundedVec<TokensRecordFileOf<T>, T::MaxTokensRecordFiles> = BoundedVec::with_bounded_capacity(record.files.len());
+                        for file in record.files.iter() {
+                            files.try_push(TokensRecordFile {
+                                name: T::Hasher::hash(&file.name).into(),
+                                content_type: T::Hasher::hash(&file.content_type).into(),
+                                size: file.size,
+                                hash: file.hash,
+                            }).unwrap();
+                        }
+
+                        Some(TokensRecord {
+                            description,
+                            files,
+                            submitter: record.submitter,
+                        })
+                    });
                 }
             )
         }
